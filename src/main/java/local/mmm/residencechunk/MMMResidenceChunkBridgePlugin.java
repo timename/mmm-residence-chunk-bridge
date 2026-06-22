@@ -63,6 +63,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         economyService = new EconomyService(vaultEconomy, settings.currencyDisplayName());
         auditLogService = new AuditLogService(this);
         landService = new LandService(this, settings, dataStore, economyService, new CustomCurrencyService(), residenceHook, auditLogService);
+        landService.syncResidenceMessages();
         visualService = new VisualService(this);
         guiService = new GuiService(this, landService, visualService);
         selectionService = new SelectionService(this, landService, visualService);
@@ -113,6 +114,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         settings = PluginSettings.fromConfig(getConfig());
         if (landService != null) {
             landService.reloadSettings(settings);
+            landService.syncResidenceMessages();
         }
     }
 

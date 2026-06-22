@@ -50,7 +50,8 @@ public final class LandDataStore {
                     claimSection.getInt("max-chunk-x"),
                     claimSection.getInt("min-chunk-z"),
                     claimSection.getInt("max-chunk-z")
-                )
+                ),
+                claimSection.getBoolean("public-teleport", false)
             );
             claims.put(key.toLowerCase(), claim);
         }
@@ -68,6 +69,7 @@ public final class LandDataStore {
             yaml.set(path + ".max-chunk-x", claim.bounds().maxChunkX());
             yaml.set(path + ".min-chunk-z", claim.bounds().minChunkZ());
             yaml.set(path + ".max-chunk-z", claim.bounds().maxChunkZ());
+            yaml.set(path + ".public-teleport", claim.publicTeleport());
         }
         try {
             File parent = file.getParentFile();

@@ -15,6 +15,8 @@ public final class ResidenceHook {
     private final Method getByNameMethod;
     private final Method getTeleportLocationMethod;
     private final Method setTpLocMethod;
+    private final Method setEnterMessageMethod;
+    private final Method setLeaveMessageMethod;
     private final Method replaceAreaMethod;
     private final Method removeResidenceMethod;
 
@@ -32,6 +34,8 @@ public final class ResidenceHook {
             this.getByNameMethod = managerClass.getMethod("getByName", String.class);
             this.getTeleportLocationMethod = residenceClass.getMethod("getTeleportLocation", Player.class, boolean.class);
             this.setTpLocMethod = residenceClass.getMethod("setTpLoc", Player.class, boolean.class);
+            this.setEnterMessageMethod = residenceClass.getMethod("setEnterMessage", String.class);
+            this.setLeaveMessageMethod = residenceClass.getMethod("setLeaveMessage", String.class);
             this.replaceAreaMethod = residenceClass.getMethod("replaceArea", Player.class, cuboidAreaClass, String.class, boolean.class);
             this.removeResidenceMethod = managerClass.getMethod("removeResidence", Player.class, residenceClass, boolean.class);
         } catch (ReflectiveOperationException exception) {
@@ -84,6 +88,22 @@ public final class ResidenceHook {
             setTpLocMethod.invoke(residence, player, admin);
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Failed to set Residence teleport location", exception);
+        }
+    }
+
+    public void setEnterMessage(Object residence, String message) {
+        try {
+            setEnterMessageMethod.invoke(residence, message);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to set Residence enter message", exception);
+        }
+    }
+
+    public void setLeaveMessage(Object residence, String message) {
+        try {
+            setLeaveMessageMethod.invoke(residence, message);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to set Residence leave message", exception);
         }
     }
 

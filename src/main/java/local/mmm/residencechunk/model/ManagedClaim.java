@@ -8,6 +8,7 @@ public record ManagedClaim(
     UUID ownerUuid,
     String ownerName,
     String worldName,
-    ChunkBounds bounds
+    ChunkBounds bounds,
+    boolean publicTeleport
 ) {
 }

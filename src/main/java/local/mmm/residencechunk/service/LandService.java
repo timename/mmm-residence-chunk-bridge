@@ -2,10 +2,12 @@ package local.mmm.residencechunk.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -19,6 +21,9 @@ import org.bukkit.Location;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -176,10 +181,12 @@ public final class LandService implements Listener {
             player.getUniqueId(),
             player.getName(),
             check.worldName(),
-            check.bounds()
+            check.bounds(),
+            false
         );
         dataStore.put(claim);
         dataStore.save();
+        applyResidenceMessages(residence, claim);
 
         player.sendMessage(money(
             plugin.message("create-success"),
@@ -263,7 +270,8 @@ public final class LandService implements Listener {
             claim.ownerUuid(),
             claim.ownerName(),
             claim.worldName(),
-            newBounds
+            newBounds,
+            claim.publicTeleport()
         );
         dataStore.put(updatedClaim);
         dataStore.save();
@@ -331,7 +339,8 @@ public final class LandService implements Listener {
             claim.ownerUuid(),
             claim.ownerName(),
             claim.worldName(),
-            newBounds
+            newBounds,
+            claim.publicTeleport()
         );
         dataStore.put(updatedClaim);
         dataStore.save();
@@ -380,7 +389,8 @@ public final class LandService implements Listener {
             claim.ownerUuid(),
             claim.ownerName(),
             claim.worldName(),
-            newBounds
+            newBounds,
+            claim.publicTeleport()
         );
         dataStore.put(updatedClaim);
         dataStore.save();
@@ -419,6 +429,57 @@ public final class LandService implements Listener {
         if (claim == null) {
             return;
         }
+        startTeleport(player, claim);
+    }
+
+    public void visitPublicClaim(Player visitor, String ownerName, String claimName) {
+        List<ManagedClaim> publicClaims = publicClaimsByOwnerName(ownerName);
+        if (publicClaims.isEmpty()) {
+            visitor.sendMessage(render(plugin.message("visit-owner-not-found"), Map.of("owner", ownerName)));
+            return;
+        }
+        ManagedClaim claim;
+        if (claimName == null || claimName.isBlank()) {
+            if (publicClaims.size() > 1) {
+                visitor.sendMessage(render(plugin.message("visit-multiple-claims"), Map.of("owner", publicClaims.get(0).ownerName())));
+                return;
+            }
+            claim = publicClaims.get(0);
+        } else {
+            claim = matchFirst(publicClaims, candidate -> candidate.displayName().equalsIgnoreCase(claimName)
+                || candidate.residenceName().equalsIgnoreCase(claimName));
+            if (claim == null) {
+                visitor.sendMessage(render(plugin.message("visit-claim-not-found"), Map.of("owner", publicClaims.get(0).ownerName())));
+                return;
+            }
+        }
+        startTeleport(visitor, claim);
+    }
+
+    public void setPublicTeleport(Player player, String residenceName, boolean enabled) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        ManagedClaim updatedClaim = new ManagedClaim(
+            claim.residenceName(),
+            claim.displayName(),
+            claim.ownerUuid(),
+            claim.ownerName(),
+            claim.worldName(),
+            claim.bounds(),
+            enabled
+        );
+        dataStore.put(updatedClaim);
+        dataStore.save();
+        player.sendMessage(render(plugin.message(enabled ? "public-teleport-enabled" : "public-teleport-disabled"), Map.of(
+            "name", updatedClaim.displayName()
+        )));
+        auditLogService.log(player, enabled ? "PUBLIC_TELEPORT_ON" : "PUBLIC_TELEPORT_OFF",
+            "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName());
+    }
+
+    private void startTeleport(Player player, ManagedClaim claim) {
         Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
         if (residence == null) {
             player.sendMessage(plugin.message("residence-missing"));
@@ -431,15 +492,28 @@ public final class LandService implements Listener {
         }
         cancelPendingTeleport(player, null);
         Location start = player.getLocation();
+        long startMillis = System.currentTimeMillis();
+        BossBar bossBar = Bukkit.createBossBar(
+            plugin.color(plugin.message("teleport-bossbar")
+                .replace("%name%", claim.displayName())
+                .replace("%seconds%", Integer.toString(delaySeconds))),
+            BarColor.GREEN,
+            BarStyle.SOLID
+        );
+        bossBar.setProgress(1.0D);
+        bossBar.addPlayer(player);
         BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             PendingTeleport removed = pendingTeleports.remove(player.getUniqueId());
             if (removed == null || !player.isOnline()) {
                 return;
             }
+            removed.cleanup();
             executeResidenceTeleport(player, claim);
         }, delaySeconds * 20L);
+        BukkitTask updateTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> updateTeleportBossBar(player.getUniqueId()), 0L, 20L);
         pendingTeleports.put(player.getUniqueId(), new PendingTeleport(claim.displayName(), claim.residenceName(),
-            start.getWorld().getName(), start.getBlockX(), start.getBlockY(), start.getBlockZ(), task));
+            start.getWorld().getName(), start.getBlockX(), start.getBlockY(), start.getBlockZ(),
+            delaySeconds, startMillis, task, updateTask, bossBar));
         player.sendMessage(render(plugin.message("teleport-warmup"), Map.of(
             "name", claim.displayName(),
             "seconds", Integer.toString(delaySeconds)
@@ -488,7 +562,7 @@ public final class LandService implements Listener {
         if (removed == null) {
             return;
         }
-        removed.task().cancel();
+        removed.cleanup();
         if (messagePath != null) {
             player.sendMessage(render(plugin.message(messagePath), Map.of("name", removed.displayName())));
         }
@@ -513,6 +587,27 @@ public final class LandService implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         cancelPendingTeleport(event.getPlayer(), null);
+    }
+
+    private void updateTeleportBossBar(UUID playerUuid) {
+        PendingTeleport pending = pendingTeleports.get(playerUuid);
+        Player player = Bukkit.getPlayer(playerUuid);
+        if (pending == null || player == null || !player.isOnline()) {
+            if (pending != null) {
+                pending.cleanup();
+                pendingTeleports.remove(playerUuid);
+            }
+            return;
+        }
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - pending.startMillis());
+        double elapsedSeconds = elapsedMillis / 1000.0D;
+        double remainingSeconds = Math.max(0D, pending.delaySeconds() - elapsedSeconds);
+        double progress = Math.max(0D, Math.min(1D, remainingSeconds / pending.delaySeconds()));
+        int shownSeconds = (int) Math.ceil(remainingSeconds);
+        pending.bossBar().setTitle(plugin.color(plugin.message("teleport-bossbar")
+            .replace("%name%", pending.displayName())
+            .replace("%seconds%", Integer.toString(Math.max(1, shownSeconds)))));
+        pending.bossBar().setProgress(progress);
     }
 
     public void adminListClaims(Player player) {
@@ -597,10 +692,15 @@ public final class LandService implements Listener {
             claim.ownerUuid(),
             claim.ownerName(),
             claim.worldName(),
-            claim.bounds()
+            claim.bounds(),
+            claim.publicTeleport()
         );
         dataStore.put(updatedClaim);
         dataStore.save();
+        Object residence = residenceHook.getByName(getResidenceManager(), updatedClaim.residenceName());
+        if (residence != null) {
+            applyResidenceMessages(residence, updatedClaim);
+        }
         player.sendMessage(render(plugin.message("rename-success"), Map.of(
             "old", claim.displayName(),
             "new", updatedClaim.displayName()
@@ -704,6 +804,21 @@ public final class LandService implements Listener {
             .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    public List<String> publicTeleportOwnerNames() {
+        Set<String> ownerNames = new LinkedHashSet<>();
+        getAllClaims().stream()
+            .filter(ManagedClaim::publicTeleport)
+            .sorted(Comparator.comparing(ManagedClaim::ownerName, String.CASE_INSENSITIVE_ORDER))
+            .forEach(claim -> ownerNames.add(claim.ownerName()));
+        return new ArrayList<>(ownerNames);
+    }
+
+    public List<String> publicTeleportClaimNames(String ownerName) {
+        return publicClaimsByOwnerName(ownerName).stream()
+            .map(ManagedClaim::displayName)
+            .toList();
+    }
+
     public List<String> ownedClaimNames(String playerName) {
         OfflinePlayer owner = resolveOfflinePlayer(playerName);
         if (owner == null) {
@@ -748,10 +863,14 @@ public final class LandService implements Listener {
             owner.getUniqueId(),
             owner.getName(),
             admin.getWorld().getName(),
-            bounds
+            bounds,
+            false
         );
         dataStore.put(claim);
         dataStore.save();
+        if (residence != null) {
+            applyResidenceMessages(residence, claim);
+        }
         admin.sendMessage(render(plugin.message("admin-create-success"), Map.of(
             "name", claim.displayName(),
             "owner", claim.ownerName(),
@@ -923,8 +1042,46 @@ public final class LandService implements Listener {
         return displayMatches.size() == 1 ? displayMatches.get(0) : null;
     }
 
+    private List<ManagedClaim> publicClaimsByOwnerName(String ownerName) {
+        String lowered = ownerName.toLowerCase(Locale.ROOT);
+        return getAllClaims().stream()
+            .filter(ManagedClaim::publicTeleport)
+            .filter(claim -> claim.ownerName().equalsIgnoreCase(ownerName)
+                || claim.ownerName().toLowerCase(Locale.ROOT).startsWith(lowered))
+            .sorted(Comparator.comparing(ManagedClaim::displayName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+    }
+
     private Object getResidenceManager() {
         return residenceHook.getResidenceManager();
+    }
+
+    public void syncResidenceMessages() {
+        Object manager = getResidenceManager();
+        int updated = 0;
+        for (ManagedClaim claim : getAllClaims()) {
+            Object residence = residenceHook.getByName(manager, claim.residenceName());
+            if (residence == null) {
+                continue;
+            }
+            applyResidenceMessages(residence, claim);
+            updated++;
+        }
+        if (updated > 0) {
+            plugin.getLogger().info("Synced Chinese enter/leave messages for " + updated + " managed residences.");
+        }
+    }
+
+    private void applyResidenceMessages(Object residence, ManagedClaim claim) {
+        residenceHook.setEnterMessage(residence, residenceMessage("residence-enter-message", claim));
+        residenceHook.setLeaveMessage(residence, residenceMessage("residence-leave-message", claim));
+    }
+
+    private String residenceMessage(String path, ManagedClaim claim) {
+        return plugin.message(path)
+            .replace("%name%", claim.displayName())
+            .replace("%internal%", claim.residenceName())
+            .replace("%ownerName%", claim.ownerName());
     }
 
     private World requireClaimWorld(Player player, ManagedClaim claim) {
@@ -1124,7 +1281,8 @@ public final class LandService implements Listener {
             claim.ownerUuid(),
             claim.ownerName(),
             claim.worldName(),
-            newBounds
+            newBounds,
+            claim.publicTeleport()
         );
         dataStore.put(updatedClaim);
         dataStore.save();
@@ -1448,7 +1606,16 @@ public final class LandService implements Listener {
         int blockX,
         int blockY,
         int blockZ,
-        BukkitTask task
+        int delaySeconds,
+        long startMillis,
+        BukkitTask task,
+        BukkitTask updateTask,
+        BossBar bossBar
     ) {
+        private void cleanup() {
+            task.cancel();
+            updateTask.cancel();
+            bossBar.removeAll();
+        }
     }
 }

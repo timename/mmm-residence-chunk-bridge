@@ -126,6 +126,28 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
                 landService.setClaimTeleport(player, args[1]);
                 return true;
             }
+            case "publictp" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("public-teleport-usage"));
+                    return true;
+                }
+                Boolean enabled = parseToggle(args[2]);
+                if (enabled == null) {
+                    player.sendMessage(plugin.message("public-teleport-usage"));
+                    return true;
+                }
+                landService.setPublicTeleport(player, args[1], enabled);
+                return true;
+            }
+            case "visit" -> {
+                if (args.length < 2) {
+                    player.sendMessage(plugin.message("visit-usage"));
+                    return true;
+                }
+                String claimName = args.length >= 3 ? args[2] : null;
+                landService.visitPublicClaim(player, args[1], claimName);
+                return true;
+            }
             case "confirm" -> {
                 selectionService.confirmSelection(player);
                 return true;
@@ -204,6 +226,8 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("resize");
             suggestions.add("tp");
             suggestions.add("sethome");
+            suggestions.add("publictp");
+            suggestions.add("visit");
             suggestions.add("confirm");
             suggestions.add("cancel");
             suggestions.add("reload");
@@ -250,9 +274,21 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             || "resize".equalsIgnoreCase(args[0])
             || "tp".equalsIgnoreCase(args[0]) || "teleport".equalsIgnoreCase(args[0])
             || "sethome".equalsIgnoreCase(args[0]) || "settp".equalsIgnoreCase(args[0])
+            || "publictp".equalsIgnoreCase(args[0])
             || "rename".equalsIgnoreCase(args[0]) || "trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
             || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
             return filter(landService.ownedClaimNames(player), args[1]);
+        }
+        if (args.length == 2 && "visit".equalsIgnoreCase(args[0])) {
+            return filter(landService.publicTeleportOwnerNames(), args[1]);
+        }
+        if (args.length == 3 && "visit".equalsIgnoreCase(args[0])) {
+            return filter(landService.publicTeleportClaimNames(args[1]), args[2]);
+        }
+        if (args.length == 3 && "publictp".equalsIgnoreCase(args[0])) {
+            suggestions.add("on");
+            suggestions.add("off");
+            return filter(suggestions, args[2]);
         }
         if (args.length == 3 && ("trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
             || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
@@ -280,6 +316,14 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
         return input.stream()
             .filter(entry -> entry.toLowerCase().startsWith(lowered))
             .toList();
+    }
+
+    private Boolean parseToggle(String input) {
+        return switch (input.toLowerCase()) {
+            case "on", "true", "yes", "开", "开启" -> true;
+            case "off", "false", "no", "关", "关闭" -> false;
+            default -> null;
+        };
     }
 
     private void handleAdmin(Player player, String[] args) {

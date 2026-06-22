@@ -171,6 +171,22 @@ plugins/Invero/workspace/MMM领地入口.yml
 
 必须站在该领地范围内执行。执行后会把当前位置设置为该领地的 Residence 传送点。
 
+### 公开传送
+
+```text
+/mmmland publictp <领地名> <on|off>
+/mmmland visit <玩家名> [领地名]
+```
+
+规则：
+
+- 玩家开启公开传送后，自己的名字会出现在 `/mmmland visit` 的 Tab 补全里
+- 第一个参数只补全已开放公开传送的玩家
+- 第二个参数只补全该玩家已开放的领地
+- 如果目标玩家只开放了一个领地，可以省略领地名
+- 公开传送复用 `teleport` 传送等待配置
+- 等待期间会显示 BossBar 倒计时，移动或退出会取消传送
+
 ### 扩张领地
 
 ```text
@@ -536,6 +552,35 @@ MMM领地入口.yml
 - 数据保存
 
 ## 更新记录
+
+### 0.14.0
+
+类型：功能新增
+
+新增：
+
+- `/mmmland publictp <领地名> <on|off>` 开启或关闭领地公开传送
+- `/mmmland visit <玩家名> [领地名]` 访问其他玩家公开的领地
+- `/mmmland visit` Tab 补全只显示已开放公开传送的玩家
+- `/mmmland visit <玩家名>` 第二段只补全该玩家公开的领地
+- 领地详情 GUI 增加公开传送开关
+- 传送等待期间显示 BossBar 倒计时
+
+调整：
+
+- `claims.yml` 增加 `public-teleport`
+- 修正 Residence 进入提示中领地主人后多出的 `%`
+
+### 0.13.2
+
+类型：Bug 修复
+
+修复：
+
+- 托管领地创建后自动写入中文 Residence 进入/离开提示
+- 插件启动和 `/mmmland reload` 时会同步所有托管领地的 Residence 提示
+- 进入提示使用本插件显示名，不再显示 `chunk_...` 内部领地名
+- 重命名领地显示名后同步更新 Residence 进入/离开提示
 
 ### 0.13.1
 

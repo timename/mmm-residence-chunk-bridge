@@ -140,6 +140,12 @@ public final class GuiService implements Listener {
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
+        inventory.setItem(40, actionItem(claim.publicTeleport() ? Material.LIME_DYE : Material.GRAY_DYE,
+            claim.publicTeleport() ? "&a公开传送：已开启" : "&7公开传送：已关闭",
+            "toggle_public::" + claim.displayName(),
+            "&7开启后其他玩家可使用:",
+            "&e/mmmland visit " + claim.ownerName() + " " + claim.displayName(),
+            claim.publicTeleport() ? "&c点击关闭公开传送" : "&a点击开启公开传送"));
         inventory.setItem(41, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName(),
             "&c此操作会删除托管记录和 Residence 领地"));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
@@ -412,6 +418,17 @@ public final class GuiService implements Listener {
             case "set_teleport" -> {
                 player.closeInventory();
                 player.performCommand("mmmland sethome " + fallbackResidenceName);
+            }
+            case "toggle_public" -> {
+                ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
+                if (claim == null) {
+                    return;
+                }
+                player.performCommand("mmmland publictp " + fallbackResidenceName + " " + (claim.publicTeleport() ? "off" : "on"));
+                ManagedClaim updated = landService.resolveOwnedClaim(player, fallbackResidenceName);
+                if (updated != null) {
+                    openClaimDetailMenu(player, updated);
+                }
             }
             case "open_delete" -> {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
