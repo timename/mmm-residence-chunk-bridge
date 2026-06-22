@@ -1,0 +1,214 @@
+# mmmResidenceChunkBridge 功能配置
+# 语言文案已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
+
+# 允许玩家创建、扩建、调整领地的世界名列表。
+# 世界名必须和服务器实际世界文件夹/ Bukkit 世界名一致。
+allowed-worlds:
+  - world
+
+# 每个世界的圈地距离规则。
+world-claim-rules:
+  # 管理员使用 /mmmland admin create/expand/contract 时是否绕过距离限制。
+  admin-bypass: true
+
+  # 按世界名配置距离限制。未配置的世界只受 allowed-worlds 控制。
+  worlds:
+    world:
+      # 领地必须整体距离 X=0,Z=0 至少多少格。
+      # 0 表示不限制最小距离。
+      min-distance-from-origin-xz: 300
+
+      # 领地最远处距离 X=0,Z=0 不能超过多少格。
+      # 0 表示不限制最大距离。
+      max-distance-from-origin-xz: 0
+
+# Vault 金币显示名。
+# 这里只影响本插件提示，不会修改经济插件本身的货币名。
+currency:
+  display-name: "奶油币"
+
+# 领地创建与形状规则。
+claims:
+  # Residence 内部领地名前缀。
+  # 实际内部名会附加玩家 UUID 片段和时间戳，避免重名。
+  internal-name-prefix: "chunk"
+
+  # 是否创建从世界最低高度到最高高度的整列领地。
+  # true 表示玩家买的是完整区块柱。
+  full-height: true
+
+  # 单个领地最小区块数。
+  # 缩小或重新选择边界时不能低于这个值。
+  min-chunks: 1
+
+  # 单个领地最大区块总数。
+  # 创建、扩建、工具调整边界都会检查这个上限。
+  max-chunks-per-claim: 64
+
+  # 出生点/服务器中心保护半径，单位为方块。
+  # 0 表示不启用中心保护。
+  no-claim-radius-blocks: 0
+
+  # 中心保护点 X 坐标。
+  protected-center-x: 0
+
+  # 中心保护点 Z 坐标。
+  protected-center-z: 0
+
+  # 是否强制领地必须是矩形。
+  # 建议保持 true，避免玩家圈出不规则领地导致管理和计费混乱。
+  rectangular-only: true
+
+  # 创建领地后是否把 Residence 传送点设置到玩家当前位置。
+  set-teleport-on-create: true
+
+# 粒子预览配置。
+visual:
+  # 普通领地边界预览持续时间，单位 tick，20 tick = 1 秒。
+  preview-duration-ticks: 200
+
+  # 普通领地边界预览刷新间隔，数值越小越明显，但粒子开销越高。
+  preview-period-ticks: 6
+
+  # 普通边界每隔多少方块生成一组粒子。
+  preview-step-blocks: 1
+
+  # 普通边界四角向上显示的高度，单位方块。
+  preview-corner-height: 8
+
+  # 普通边界红石尘粒子大小。
+  preview-dust-size: 1.6
+
+  # 玩家手动选择出来的矩形范围预览样式。
+  selection:
+    # 选区边界每隔多少方块生成一组粒子。
+    step-blocks: 1
+
+    # 选区四角向上显示的高度，单位方块。
+    corner-height: 8
+
+    # 选区红石尘粒子大小。
+    dust-size: 1.6
+
+    # 是否额外叠加发光感更强的强调粒子。
+    accent-enabled: true
+
+    # 选区强调粒子类型。
+    # 常用：END_ROD、GLOW、HAPPY_VILLAGER。
+    accent-particle: END_ROD
+
+  # 是否显示玩家当前脚下区块边界。
+  current-chunk-enabled: true
+
+  # 玩家当前脚下区块预览样式。
+  current-chunk:
+    # 当前区块颜色，格式为 "红,绿,蓝"，取值 0-255。
+    color: "255,220,40"
+
+    # 当前区块边界每隔多少方块生成一组粒子。
+    step-blocks: 2
+
+    # 当前区块四角向上显示的高度，单位方块。
+    corner-height: 4
+
+    # 当前区块红石尘粒子大小。
+    dust-size: 1.1
+
+    # 是否叠加强调粒子。
+    accent-enabled: true
+
+    # 当前区块强调粒子类型。
+    accent-particle: HAPPY_VILLAGER
+
+# 手动圈地工具配置。
+selection:
+  # 用于左键/右键选择区块的物品材质名。
+  # 必须是 Bukkit Material 名称，例如 GOLDEN_SHOVEL、WOODEN_HOE。
+  tool: GOLDEN_SHOVEL
+
+  # 是否要求玩家必须手持上面的工具才能选择区块。
+  require-tool: true
+
+  # 选区会话超时时间，单位秒。
+  timeout-seconds: 120
+
+  # 选区预览刷新间隔，单位 tick。
+  preview-period-ticks: 10
+
+# 领地传送配置。
+teleport:
+  # 普通玩家传送等待时间，单位秒。
+  # 0 表示普通玩家也立即传送。
+  default-delay-seconds: 5
+
+  # 权限节点对应的传送等待时间，单位秒。
+  # 玩家拥有多个节点时取最短时间。
+  # 设置为 0 表示拥有该权限的玩家立即传送。
+  permission-delays:
+    mmmland.teleport.fast: 2
+    mmmland.teleport.instant: 0
+
+# 玩家领地数量限制。
+limits:
+  # 没有特殊权限时，玩家最多可拥有的本插件托管领地数量。
+  default-max-claims: 4
+
+  # 权限节点对应的最大领地数量。
+  # 玩家拥有多个节点时取最大值。
+  permission-max-claims:
+    mmmland.limit.1: 1
+    mmmland.limit.2: 2
+    mmmland.limit.4: 4
+    mmmland.limit.8: 8
+
+# 价格配置。
+pricing:
+  # 创建新领地价格。
+  create:
+    # 超过 tiers 中最大序号后，是否沿用最高档基础价格继续计算。
+    fallback-last-tier: true
+
+    # 多区块创建时，每个额外区块增加的创建价格。
+    # 例如创建 3 区块领地，会在基础创建价上额外加 2 次该价格。
+    price-per-extra-chunk: 500
+
+    # 第 N 个领地的基础创建价格。
+    # key 是玩家的第几个领地，value 是价格。
+    tiers:
+      1: 0
+      2: 1000
+      3: 2000
+      4: 4000
+
+  # 扩建/工具调整边界新增区块价格。
+  expand:
+    # 扩建后领地总区块数不超过该值时，使用 Vault 金币收费。
+    # 超过该值时，使用 custom-currency 中配置的自管货币收费。
+    vault-max-chunks: 25
+
+    # 递增扩建价格。
+    # 默认规则：第 1 个扩建区块 500，第 2 个 700，第 3 个 900。
+    # 价格按领地当前面积累计计算，分多次扩建也不会重置回首块价格。
+    progressive:
+      # 第一个扩建区块的价格。
+      base-price: 500
+
+      # 每新增一个扩建区块后，下一块比上一块增加的价格。
+      price-increase-per-chunk: 200
+
+    # 超过金币区块上限后使用的 MMMVaultSync 自管货币。
+    custom-currency:
+      # 是否启用自管货币扩建。
+      enabled: true
+
+      # MMMVaultSync 中注册的货币 ID。
+      id: "mengmeng_crystal"
+
+      # 自管货币显示名。
+      display-name: "萌萌水晶"
+
+  # 缩小领地价格策略。
+  contract:
+    # 是否返还缩小减少的区块费用。
+    # 当前代码逻辑保留该配置位，但默认不返还。
+    refund-enabled: false
