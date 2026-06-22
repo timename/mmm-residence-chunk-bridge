@@ -1,5 +1,5 @@
 # MMMResidenceChunkBridge
-# 第一版只做 Residence 的区块化业务封装，不重写保护系统。
+# 该插件只负责把 Residence 的底层领地能力包装成更适合服务器使用的区块化管理流程。
 
 allowed-worlds:
   - world
@@ -14,9 +14,7 @@ claims:
   no-claim-radius-blocks: 0
   protected-center-x: 0
   protected-center-z: 0
-  # 仅支持矩形区块领地。
   rectangular-only: true
-  # 创建领地时是否把玩家当前位置设置为领地传送点。
   set-teleport-on-create: true
 
 visual:
@@ -74,7 +72,11 @@ messages:
   invalid-direction: "&c方向必须是 north、south、east 或 west。"
   invalid-amount: "&c区块数必须是大于 0 的整数。"
   too-many-claims: "&c你的领地数量已达到上限: &f%limit%"
-  create-preview: "&e将创建当前所在区块领地，价格: &f%price% %currency%"
+  create-preview: "&e即将创建领地 &f%name%&e，价格: &f%price% %currency%"
+  create-confirm-instruction: "&b请输入“确认”完成创建，输入“取消”退出。离开当前预览范围会自动取消。"
+  create-confirm-invalid: "&c请输入“确认”完成创建，或输入“取消”退出。"
+  create-cancelled: "&e已取消本次圈地确认。"
+  create-cancelled-leave: "&e你已离开预览范围，本次圈地确认已自动取消。"
   no-managed-claims: "&7你还没有通过本插件创建的领地。"
   gui:
     main-title: "&8领地菜单"
@@ -85,7 +87,7 @@ messages:
     delete-confirm-title: "&8确认删除"
   help:
     - "&e/mmmland create [显示名] &7在当前区块创建整列领地"
-    - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名"
+    - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名称"
     - "&e/mmmland list &7查看你的领地"
     - "&e/mmmland expand <领地名> <方向> <区块数> &7按区块扩张"
     - "&e/mmmland contract <领地名> <方向> <区块数> &7按区块缩小"

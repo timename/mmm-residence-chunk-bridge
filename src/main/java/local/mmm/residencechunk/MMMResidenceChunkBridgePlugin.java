@@ -40,8 +40,8 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
             throw new IllegalStateException("Vault economy provider not found.");
         }
         Plugin residencePlugin = Bukkit.getPluginManager().getPlugin("Residence");
-        if (residencePlugin == null) {
-            throw new IllegalStateException("Residence plugin not found.");
+        if (residencePlugin == null || !residencePlugin.isEnabled()) {
+            throw new IllegalStateException("Residence plugin is not enabled.");
         }
         residenceHook = new ResidenceHook(residencePlugin);
 
@@ -91,7 +91,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     }
 
     public String color(String input) {
-        return input.replace('&', '§');
+        return input.replace('&', '\u00A7');
     }
 
     private Economy setupEconomy() {

@@ -1,18 +1,28 @@
 package local.mmm.residencechunk.service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
+import local.mmm.residencechunk.model.ChunkBounds;
 import local.mmm.residencechunk.model.ManagedClaim;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
-import org.bukkit.Color;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
@@ -30,6 +40,7 @@ public final class GuiService implements Listener {
     private final LandService landService;
     private final NamespacedKey claimKey;
     private final NamespacedKey actionKey;
+    private final Map<UUID, PendingCreation> pendingCreations = new ConcurrentHashMap<>();
 
     public GuiService(MMMResidenceChunkBridgePlugin plugin, LandService landService) {
         this.plugin = plugin;
@@ -45,13 +56,14 @@ public final class GuiService implements Listener {
         inventory.setItem(11, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
             "&7在你当前所在区块创建整列领地",
             "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
-            "&b点击后会显示粒子范围并直接创建"));
+            "&b点击后关闭菜单，显示粒子范围",
+            "&b随后在聊天栏输入“确认”完成创建"));
         inventory.setItem(13, createItem(Material.MAP, "&b我的领地",
             "&7查看你的领地列表",
             "&7点击打开"));
         inventory.setItem(15, createItem(Material.GOLD_INGOT, "&6价格说明",
             "&7扩张单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName(),
-            "&7缩小不退款"));
+            "&7缩小不会返还货币"));
         player.openInventory(inventory);
     }
 
@@ -68,7 +80,8 @@ public final class GuiService implements Listener {
             ItemStack item = createItem(Material.OAK_SIGN, "&e" + claim.displayName(),
                 "&7内部名: &f" + claim.residenceName(),
                 "&7世界: &f" + claim.worldName(),
-                "&7区块: &f" + claim.bounds().minChunkX() + "," + claim.bounds().minChunkZ() + " -> " + claim.bounds().maxChunkX() + "," + claim.bounds().maxChunkZ(),
+                "&7区块: &f" + claim.bounds().minChunkX() + "," + claim.bounds().minChunkZ()
+                    + " -> " + claim.bounds().maxChunkX() + "," + claim.bounds().maxChunkZ(),
                 "&7点击进入操作菜单");
             item.editMeta(meta -> meta.getPersistentDataContainer().set(claimKey, PersistentDataType.STRING, claim.residenceName()));
             inventory.setItem(slot++, item);
@@ -211,13 +224,41 @@ public final class GuiService implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPendingCreateChat(AsyncPlayerChatEvent event) {
+        PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
+        if (pending == null) {
+            return;
+        }
+
+        event.setCancelled(true);
+        String message = event.getMessage().trim();
+        Bukkit.getScheduler().runTask(plugin, () -> handlePendingCreateChat(event.getPlayer(), message));
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
+        if (pending == null || event.getTo() == null) {
+            return;
+        }
+        if (sameBlock(event.getFrom(), event.getTo())) {
+            return;
+        }
+        if (isInsideBounds(event.getTo(), pending.worldName(), pending.bounds())) {
+            return;
+        }
+        cancelPendingCreation(event.getPlayer(), "create-cancelled-leave");
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        cancelPendingCreation(event.getPlayer(), null);
+    }
+
     private void handleMainMenuClick(Player player, int rawSlot) {
         switch (rawSlot) {
-            case 11 -> {
-                previewBounds(player, landService.singleChunkBounds(player), player.getWorld().getName());
-                landService.createClaim(player, null);
-                Bukkit.getScheduler().runTask(plugin, () -> openMainMenu(player));
-            }
+            case 11 -> startCreateConfirmation(player);
             case 13 -> openClaimsMenu(player);
             default -> {
             }
@@ -329,6 +370,75 @@ public final class GuiService implements Listener {
         }
     }
 
+    private void startCreateConfirmation(Player player) {
+        LandService.CreateCheckResult check = landService.prepareCreateClaim(player, null);
+        if (!check.allowed()) {
+            player.sendMessage(check.message());
+            return;
+        }
+
+        cancelPendingCreation(player, null);
+        PendingCreation pending = new PendingCreation(player.getUniqueId(), check.displayName(), check.worldName(), check.bounds(), check.price());
+        pendingCreations.put(player.getUniqueId(), pending);
+
+        player.closeInventory();
+        previewBounds(player, check.bounds(), check.worldName());
+        player.sendMessage(plugin.message("create-preview")
+            .replace("%name%", check.displayName())
+            .replace("%price%", formatPrice(check.price()))
+            .replace("%currency%", plugin.settings().currencyDisplayName()));
+        player.sendMessage(plugin.message("create-confirm-instruction"));
+    }
+
+    private void handlePendingCreateChat(Player player, String message) {
+        PendingCreation pending = pendingCreations.get(player.getUniqueId());
+        if (pending == null) {
+            return;
+        }
+
+        if ("取消".equalsIgnoreCase(message) || "cancel".equalsIgnoreCase(message)) {
+            cancelPendingCreation(player, "create-cancelled");
+            return;
+        }
+        if (!"确认".equalsIgnoreCase(message) && !"confirm".equalsIgnoreCase(message)) {
+            player.sendMessage(plugin.message("create-confirm-invalid"));
+            return;
+        }
+        if (!isInsideBounds(player.getLocation(), pending.worldName(), pending.bounds())) {
+            cancelPendingCreation(player, "create-cancelled-leave");
+            return;
+        }
+
+        pendingCreations.remove(player.getUniqueId());
+        landService.createClaim(player, pending.displayName());
+    }
+
+    private void cancelPendingCreation(Player player, String messagePath) {
+        PendingCreation removed = pendingCreations.remove(player.getUniqueId());
+        if (removed != null && messagePath != null) {
+            player.sendMessage(plugin.message(messagePath));
+        }
+    }
+
+    private boolean isInsideBounds(Location location, String worldName, ChunkBounds bounds) {
+        if (location == null || location.getWorld() == null || !location.getWorld().getName().equals(worldName)) {
+            return false;
+        }
+        int chunkX = location.getChunk().getX();
+        int chunkZ = location.getChunk().getZ();
+        return chunkX >= bounds.minChunkX()
+            && chunkX <= bounds.maxChunkX()
+            && chunkZ >= bounds.minChunkZ()
+            && chunkZ <= bounds.maxChunkZ();
+    }
+
+    private boolean sameBlock(Location from, Location to) {
+        return from.getWorld() == to.getWorld()
+            && from.getBlockX() == to.getBlockX()
+            && from.getBlockY() == to.getBlockY()
+            && from.getBlockZ() == to.getBlockZ();
+    }
+
     private ItemStack actionItem(Material material, String name, String encodedAction, String... loreLines) {
         ItemStack item = createItem(material, name, loreLines);
         item.editMeta(meta -> meta.getPersistentDataContainer().set(actionKey, PersistentDataType.STRING, encodedAction));
@@ -340,7 +450,7 @@ public final class GuiService implements Listener {
         item.editMeta(meta -> {
             meta.setDisplayName(plugin.color(name));
             if (loreLines.length > 0) {
-                meta.setLore(java.util.Arrays.stream(loreLines).map(plugin::color).toList());
+                meta.setLore(Arrays.stream(loreLines).map(plugin::color).toList());
             }
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         });
@@ -348,26 +458,37 @@ public final class GuiService implements Listener {
     }
 
     private void fillBackground(Inventory inventory) {
-        ItemStack blue = createPane(Material.BLUE_STAINED_GLASS_PANE);
-        ItemStack lightBlue = createPane(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
+        ItemStack outer = createPane(Material.BLUE_STAINED_GLASS_PANE);
+        ItemStack inner = createPane(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
+        ItemStack accent = createPane(Material.CYAN_STAINED_GLASS_PANE);
+
         for (int slot = 0; slot < inventory.getSize(); slot++) {
-            if (inventory.getItem(slot) != null) {
-                continue;
+            inventory.setItem(slot, outer.clone());
+        }
+
+        int rows = inventory.getSize() / 9;
+        for (int row = 1; row < rows - 1; row++) {
+            for (int col = 1; col < 8; col++) {
+                inventory.setItem(row * 9 + col, inner.clone());
             }
-            inventory.setItem(slot, (slot % 2 == 0) ? blue.clone() : lightBlue.clone());
+        }
+
+        for (int col = 2; col <= 6; col++) {
+            inventory.setItem(1 * 9 + col, accent.clone());
+            inventory.setItem((rows - 2) * 9 + col, accent.clone());
         }
     }
 
     private ItemStack createPane(Material material) {
         ItemStack item = new ItemStack(material);
         item.editMeta(meta -> {
-            meta.setDisplayName("§a");
+            meta.setDisplayName(" ");
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         });
         return item;
     }
 
-    private void previewBounds(Player player, local.mmm.residencechunk.model.ChunkBounds bounds, String worldName) {
+    private void previewBounds(Player player, ChunkBounds bounds, String worldName) {
         if (!player.getWorld().getName().equals(worldName)) {
             return;
         }
@@ -395,11 +516,12 @@ public final class GuiService implements Listener {
                 player.spawnParticle(particle, minX + 0.5, y, z + 0.5, 1, 0, 0, 0, 0);
                 player.spawnParticle(particle, maxX + 0.5, y, z + 0.5, 1, 0, 0, 0, 0);
             }
+            Particle.DustOptions dust = new Particle.DustOptions(Color.AQUA, 1.4f);
             for (double cornerY = y; cornerY <= y + 3; cornerY += 1) {
-                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, minZ + 0.5, 1, new Particle.DustOptions(Color.AQUA, 1.4f));
-                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, minZ + 0.5, 1, new Particle.DustOptions(Color.AQUA, 1.4f));
-                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, maxZ + 0.5, 1, new Particle.DustOptions(Color.AQUA, 1.4f));
-                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, maxZ + 0.5, 1, new Particle.DustOptions(Color.AQUA, 1.4f));
+                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, minZ + 0.5, 1, dust);
+                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, minZ + 0.5, 1, dust);
+                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, maxZ + 0.5, 1, dust);
+                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, maxZ + 0.5, 1, dust);
             }
         }, 0L, 10L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -440,6 +562,9 @@ public final class GuiService implements Listener {
     }
 
     private record DeleteConfirmHolder(String residenceName) implements ManagedHolder {
+    }
+
+    private record PendingCreation(UUID playerUuid, String displayName, String worldName, ChunkBounds bounds, double price) {
     }
 
     public enum Mode {

@@ -55,58 +55,66 @@ public final class LandService {
         }
     }
 
-    public void createClaim(Player player, String displayName) {
+    public CreateCheckResult prepareCreateClaim(Player player, String displayName) {
         if (!isAllowedWorld(player.getWorld().getName())) {
-            player.sendMessage(plugin.message("world-not-allowed"));
-            return;
+            return CreateCheckResult.denied(plugin.message("world-not-allowed"));
         }
 
         int currentClaims = getClaims(player.getUniqueId()).size();
         int maxClaims = getMaxClaims(player);
         if (currentClaims >= maxClaims) {
-            player.sendMessage(render(plugin.message("too-many-claims"), Map.of("limit", Integer.toString(maxClaims))));
-            return;
+            return CreateCheckResult.denied(render(plugin.message("too-many-claims"), Map.of("limit", Integer.toString(maxClaims))));
         }
 
         int nextOrdinal = currentClaims + 1;
         double price = getCreatePrice(nextOrdinal);
         if (price > 0 && !economyService.has(player.getUniqueId(), price)) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), price));
-            return;
+            return CreateCheckResult.denied(money(plugin.message("insufficient-funds"), price));
         }
 
         String finalDisplayName = normalizeRequestedDisplayName(player, displayName);
         if (finalDisplayName == null) {
-            return;
+            return CreateCheckResult.denied(null);
         }
 
         ChunkBounds bounds = ChunkBounds.single(player.getChunk());
         if (isInsideProtectedCenter(bounds)) {
-            player.sendMessage(plugin.message("inside-protected-center"));
-            return;
+            return CreateCheckResult.denied(plugin.message("inside-protected-center"));
         }
+
         String internalName = generateInternalName(player);
         Object area = toArea(player.getWorld(), bounds);
         Object manager = getResidenceManager();
         String collision = residenceHook.checkAreaCollision(manager, area, null, player.getUniqueId());
         if (collision != null) {
-            player.sendMessage(render(plugin.message("collision"), Map.of("target", collision)));
+            return CreateCheckResult.denied(render(plugin.message("collision"), Map.of("target", collision)));
+        }
+
+        return CreateCheckResult.allowed(finalDisplayName, internalName, player.getWorld().getName(), bounds, price);
+    }
+
+    public void createClaim(Player player, String displayName) {
+        CreateCheckResult check = prepareCreateClaim(player, displayName);
+        if (!check.allowed()) {
+            if (check.message() != null && !check.message().isBlank()) {
+                player.sendMessage(check.message());
+            }
             return;
         }
 
-        if (price > 0 && !economyService.withdraw(player.getUniqueId(), price)) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), price));
+        if (check.price() > 0 && !economyService.withdraw(player.getUniqueId(), check.price())) {
+            player.sendMessage(money(plugin.message("insufficient-funds"), check.price()));
             return;
         }
 
-        boolean created = residenceHook.addResidence(manager, player, player.getName(), player.getUniqueId(), internalName,
-            lowLocation(player.getWorld(), bounds), highLocation(player.getWorld(), bounds), true);
+        boolean created = residenceHook.addResidence(getResidenceManager(), player, player.getName(), player.getUniqueId(), check.internalName(),
+            lowLocation(player.getWorld(), check.bounds()), highLocation(player.getWorld(), check.bounds()), true);
         if (!created) {
             player.sendMessage(plugin.message("residence-missing"));
             return;
         }
 
-        Object residence = residenceHook.getByName(manager, internalName);
+        Object residence = residenceHook.getByName(getResidenceManager(), check.internalName());
         if (residence == null) {
             player.sendMessage(plugin.message("residence-missing"));
             return;
@@ -117,12 +125,12 @@ public final class LandService {
         }
 
         ManagedClaim claim = new ManagedClaim(
-            internalName,
-            finalDisplayName,
+            check.internalName(),
+            check.displayName(),
             player.getUniqueId(),
             player.getName(),
-            player.getWorld().getName(),
-            bounds
+            check.worldName(),
+            check.bounds()
         );
         dataStore.put(claim);
         dataStore.save();
@@ -130,7 +138,7 @@ public final class LandService {
         player.sendMessage(money(
             plugin.message("create-success"),
             Map.of("name", claim.displayName()),
-            price
+            check.price()
         ));
     }
 
@@ -343,6 +351,58 @@ public final class LandService {
             .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    public ManagedClaim resolveOwnedClaim(Player player, String input) {
+        List<ManagedClaim> owned = getClaims(player.getUniqueId());
+        if (owned.isEmpty()) {
+            player.sendMessage(plugin.message("residence-not-managed"));
+            return null;
+        }
+
+        ManagedClaim exactInternal = matchFirst(owned, claim -> claim.residenceName().equalsIgnoreCase(input));
+        if (exactInternal != null) {
+            return exactInternal;
+        }
+
+        ManagedClaim exactDisplay = matchFirst(owned, claim -> claim.displayName().equalsIgnoreCase(input));
+        if (exactDisplay != null) {
+            return exactDisplay;
+        }
+
+        List<ManagedClaim> partialDisplay = owned.stream()
+            .filter(claim -> claim.displayName().toLowerCase(Locale.ROOT).contains(input.toLowerCase(Locale.ROOT)))
+            .toList();
+        if (partialDisplay.size() == 1) {
+            return partialDisplay.get(0);
+        }
+        if (partialDisplay.size() > 1) {
+            player.sendMessage(plugin.message("display-name-ambiguous"));
+            return null;
+        }
+
+        player.sendMessage(plugin.message("residence-not-managed"));
+        return null;
+    }
+
+    public double previewCreatePrice(Player player) {
+        return getCreatePrice(getClaims(player.getUniqueId()).size() + 1);
+    }
+
+    public double getExpandPricePerChunk() {
+        return settings.expandPricePerChunk();
+    }
+
+    public ChunkBounds singleChunkBounds(Player player) {
+        return ChunkBounds.single(player.getChunk());
+    }
+
+    public ChunkBounds previewBounds(ManagedClaim claim, boolean expand, String directionInput, int amount) {
+        Direction direction = Direction.parse(directionInput);
+        if (direction == null || amount <= 0) {
+            return claim.bounds();
+        }
+        return expand ? claim.bounds().expand(direction, amount) : claim.bounds().contract(direction, amount);
+    }
+
     private ManagedClaim requireOwnedClaim(Player player, String residenceName) {
         ManagedClaim claim = resolveOwnedClaim(player, residenceName);
         if (claim == null) {
@@ -420,38 +480,6 @@ public final class LandService {
         return finalDisplayName;
     }
 
-    public ManagedClaim resolveOwnedClaim(Player player, String input) {
-        List<ManagedClaim> owned = getClaims(player.getUniqueId());
-        if (owned.isEmpty()) {
-            player.sendMessage(plugin.message("residence-not-managed"));
-            return null;
-        }
-
-        ManagedClaim exactInternal = matchFirst(owned, claim -> claim.residenceName().equalsIgnoreCase(input));
-        if (exactInternal != null) {
-            return exactInternal;
-        }
-
-        ManagedClaim exactDisplay = matchFirst(owned, claim -> claim.displayName().equalsIgnoreCase(input));
-        if (exactDisplay != null) {
-            return exactDisplay;
-        }
-
-        List<ManagedClaim> partialDisplay = owned.stream()
-            .filter(claim -> claim.displayName().toLowerCase(Locale.ROOT).contains(input.toLowerCase(Locale.ROOT)))
-            .toList();
-        if (partialDisplay.size() == 1) {
-            return partialDisplay.get(0);
-        }
-        if (partialDisplay.size() > 1) {
-            player.sendMessage(plugin.message("display-name-ambiguous"));
-            return null;
-        }
-
-        player.sendMessage(plugin.message("residence-not-managed"));
-        return null;
-    }
-
     private ManagedClaim matchFirst(List<ManagedClaim> claims, Function<ManagedClaim, Boolean> matcher) {
         for (ManagedClaim claim : claims) {
             if (Boolean.TRUE.equals(matcher.apply(claim))) {
@@ -459,26 +487,6 @@ public final class LandService {
             }
         }
         return null;
-    }
-
-    public double previewCreatePrice(Player player) {
-        return getCreatePrice(getClaims(player.getUniqueId()).size() + 1);
-    }
-
-    public double getExpandPricePerChunk() {
-        return settings.expandPricePerChunk();
-    }
-
-    public ChunkBounds singleChunkBounds(Player player) {
-        return ChunkBounds.single(player.getChunk());
-    }
-
-    public ChunkBounds previewBounds(ManagedClaim claim, boolean expand, String directionInput, int amount) {
-        Direction direction = Direction.parse(directionInput);
-        if (direction == null || amount <= 0) {
-            return claim.bounds();
-        }
-        return expand ? claim.bounds().expand(direction, amount) : claim.bounds().contract(direction, amount);
     }
 
     private Object toArea(World world, ChunkBounds bounds) {
@@ -549,5 +557,23 @@ public final class LandService {
             return Long.toString((long) amount);
         }
         return String.format(Locale.US, "%.2f", amount);
+    }
+
+    public record CreateCheckResult(
+        boolean allowed,
+        String message,
+        String displayName,
+        String internalName,
+        String worldName,
+        ChunkBounds bounds,
+        double price
+    ) {
+        public static CreateCheckResult denied(String message) {
+            return new CreateCheckResult(false, message, null, null, null, null, 0D);
+        }
+
+        public static CreateCheckResult allowed(String displayName, String internalName, String worldName, ChunkBounds bounds, double price) {
+            return new CreateCheckResult(true, null, displayName, internalName, worldName, bounds, price);
+        }
     }
 }
