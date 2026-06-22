@@ -1,0 +1,22 @@
+title: "&0&l领地"
+rows: 3
+
+items:
+  打开领地菜单:
+    material: grass_block
+    name: "&a&l领地菜单"
+    lore:
+      - ""
+      - "&7点击打开区块化领地菜单"
+      - "&7底层保护由 Residence 提供"
+    slot: 13
+    actions:
+      - menu close
+      - command "mmmland menu"
+
+  关闭:
+    material: barrier
+    name: "&c&l关闭"
+    slot: 22
+    actions:
+      - menu close

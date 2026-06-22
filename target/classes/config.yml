@@ -1,0 +1,92 @@
+# MMMResidenceChunkBridge
+# 第一版只做 Residence 的区块化业务封装，不重写保护系统。
+
+allowed-worlds:
+  - world
+
+currency:
+  display-name: "奶油币"
+
+claims:
+  internal-name-prefix: "chunk"
+  full-height: true
+  min-chunks: 1
+  no-claim-radius-blocks: 0
+  protected-center-x: 0
+  protected-center-z: 0
+  # 仅支持矩形区块领地。
+  rectangular-only: true
+  # 创建领地时是否把玩家当前位置设置为领地传送点。
+  set-teleport-on-create: true
+
+visual:
+  preview-duration-ticks: 80
+  preview-step-blocks: 2
+  preview-particle: END_ROD
+
+limits:
+  default-max-claims: 4
+  permission-max-claims:
+    mmmland.limit.1: 1
+    mmmland.limit.2: 2
+    mmmland.limit.4: 4
+    mmmland.limit.8: 8
+
+pricing:
+  create:
+    fallback-last-tier: true
+    tiers:
+      1: 0
+      2: 1000
+      3: 2000
+      4: 4000
+  expand:
+    price-per-chunk: 500
+  contract:
+    refund-enabled: false
+
+messages:
+  prefix: "&6[领地]&r "
+  no-permission: "&c你没有权限执行这个操作。"
+  player-only: "&c这个命令只能由玩家执行。"
+  residence-missing: "&c未找到该领地。"
+  residence-not-managed: "&c这个领地不是由本插件创建的。"
+  residence-not-owner: "&c你不是这个领地的所有者。"
+  display-name-exists: "&c你已有同名显示领地: &f%name%"
+  display-name-ambiguous: "&c找到多个重名领地，请改用更精确的显示名。"
+  world-not-allowed: "&c当前世界不允许圈地。"
+  inside-protected-center: "&c这个位置位于服务器中心保护范围内，不能创建领地。"
+  create-usage: "&e用法: /mmmland create [显示名]"
+  rename-usage: "&e用法: /mmmland rename <旧显示名> <新显示名>"
+  expand-usage: "&e用法: /mmmland expand <领地名> <north|south|east|west> <区块数>"
+  contract-usage: "&e用法: /mmmland contract <领地名> <north|south|east|west> <区块数>"
+  menu-opened: "&a已打开领地菜单。"
+  list-header: "&e你的领地:"
+  list-entry: "&6- &f%name% &7(%world% %minChunkX%,%minChunkZ% -> %maxChunkX%,%maxChunkZ%)"
+  create-success: "&a领地创建成功: &f%name%&a，收费 &f%price% %currency%"
+  rename-success: "&a领地已重命名: &f%old% &7-> &f%new%"
+  expand-success: "&a领地扩张成功: &f%name%&a，新增 &f%delta% &a个区块，收费 &f%price% %currency%"
+  contract-success: "&a领地缩小成功: &f%name%&a，减少 &f%delta% &a个区块，不返还货币。"
+  delete-success: "&a领地已删除: &f%name%"
+  insufficient-funds: "&c余额不足，需要 &f%price% %currency%&c。"
+  collision: "&c目标范围与其他领地冲突: &f%target%"
+  cannot-contract-below-min: "&c缩小后不能小于最小区块数。"
+  invalid-direction: "&c方向必须是 north、south、east 或 west。"
+  invalid-amount: "&c区块数必须是大于 0 的整数。"
+  too-many-claims: "&c你的领地数量已达到上限: &f%limit%"
+  create-preview: "&e将创建当前所在区块领地，价格: &f%price% %currency%"
+  no-managed-claims: "&7你还没有通过本插件创建的领地。"
+  gui:
+    main-title: "&8领地菜单"
+    list-title: "&8我的领地"
+    detail-title: "&8领地操作"
+    direction-title: "&8选择方向"
+    amount-title: "&8选择区块数"
+    delete-confirm-title: "&8确认删除"
+  help:
+    - "&e/mmmland create [显示名] &7在当前区块创建整列领地"
+    - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名"
+    - "&e/mmmland list &7查看你的领地"
+    - "&e/mmmland expand <领地名> <方向> <区块数> &7按区块扩张"
+    - "&e/mmmland contract <领地名> <方向> <区块数> &7按区块缩小"
+    - "&e/mmmland delete <领地名> &7删除领地"
