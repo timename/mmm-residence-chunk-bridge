@@ -35,16 +35,37 @@ public final class SelectionService implements Listener {
 
     public void startSelection(Player player, String displayName) {
         cancelSelection(player, null);
-        SelectionSession session = new SelectionSession(player.getWorld().getName(), displayName);
+        SelectionSession session = new SelectionSession(SelectionMode.CREATE, player.getWorld().getName(), displayName, null);
+        startSession(player, session);
+        player.sendMessage(plugin.message("select-start"));
+        player.sendMessage(plugin.message("select-instruction"));
+    }
+
+    public void startResizeSelection(Player player, String residenceName) {
+        cancelSelection(player, null);
+        var claim = landService.resolveOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        if (!player.getWorld().getName().equals(claim.worldName())) {
+            player.sendMessage(plugin.message("select-wrong-world"));
+            return;
+        }
+        SelectionSession session = new SelectionSession(SelectionMode.RESIZE, claim.worldName(), claim.displayName(), claim.displayName());
+        session.start(claim.bounds().minChunkX(), claim.bounds().minChunkZ());
+        session.end(claim.bounds().maxChunkX(), claim.bounds().maxChunkZ());
+        startSession(player, session);
+        player.sendMessage(plugin.message("resize-select-start").replace("%name%", claim.displayName()));
+        player.sendMessage(plugin.message("resize-select-instruction"));
+    }
+
+    private void startSession(Player player, SelectionSession session) {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> tickPreview(player.getUniqueId()), 0L, plugin.settings().selectionPreviewPeriodTicks());
         BukkitTask timeoutTask = Bukkit.getScheduler().runTaskLater(plugin, () -> timeoutSelection(player.getUniqueId()), plugin.settings().selectionTimeoutSeconds() * 20L);
         session.previewTask(task);
         session.timeoutTask(timeoutTask);
         sessions.put(player.getUniqueId(), session);
-
         player.closeInventory();
-        player.sendMessage(plugin.message("select-start"));
-        player.sendMessage(plugin.message("select-instruction"));
     }
 
     public boolean hasSelection(Player player) {
@@ -67,6 +88,20 @@ public final class SelectionService implements Listener {
             return;
         }
 
+        if (session.mode() == SelectionMode.RESIZE) {
+            LandService.ResizeCheckResult check = refreshResizeCheck(player, session);
+            if (!check.allowed()) {
+                if (check.message() != null && !check.message().isBlank()) {
+                    player.sendMessage(check.message());
+                }
+                return;
+            }
+            sessions.remove(player.getUniqueId());
+            session.cancelTask();
+            landService.resizeClaim(player, session.claimName(), bounds);
+            return;
+        }
+
         LandService.CreateCheckResult check = refreshSessionCheck(player, session);
         if (!check.allowed()) {
             if (check.message() != null && !check.message().isBlank()) {
@@ -74,7 +109,6 @@ public final class SelectionService implements Listener {
             }
             return;
         }
-
         sessions.remove(player.getUniqueId());
         session.cancelTask();
         landService.createPreparedClaim(player, check);
@@ -185,11 +219,21 @@ public final class SelectionService implements Listener {
             return;
         }
 
-        LandService.CreateCheckResult check = session.lastCheck();
-        if (check == null) {
-            check = refreshSessionCheck(player, session);
+        boolean allowed;
+        if (session.mode() == SelectionMode.RESIZE) {
+            LandService.ResizeCheckResult check = session.lastResizeCheck();
+            if (check == null) {
+                check = refreshResizeCheck(player, session);
+            }
+            allowed = check.allowed();
+        } else {
+            LandService.CreateCheckResult check = session.lastCheck();
+            if (check == null) {
+                check = refreshSessionCheck(player, session);
+            }
+            allowed = check.allowed();
         }
-        Color color = check.allowed() ? Color.LIME : Color.RED;
+        Color color = allowed ? Color.LIME : Color.RED;
         drawCurrentChunk(player);
         visualService.drawBounds(player, bounds, player.getWorld(), color);
     }
@@ -204,6 +248,10 @@ public final class SelectionService implements Listener {
     private void sendSelectionSummary(Player player, SelectionSession session) {
         ChunkBounds bounds = session.bounds();
         if (bounds == null) {
+            return;
+        }
+        if (session.mode() == SelectionMode.RESIZE) {
+            sendResizeSummary(player, session, bounds);
             return;
         }
         LandService.CreateCheckResult check = session.lastCheck();
@@ -233,6 +281,38 @@ public final class SelectionService implements Listener {
         LandService.CreateCheckResult check = landService.prepareCreateClaim(player, session.displayName(), bounds);
         session.lastCheck(check);
         return check;
+    }
+
+    private LandService.ResizeCheckResult refreshResizeCheck(Player player, SelectionSession session) {
+        ChunkBounds bounds = session.bounds();
+        if (bounds == null) {
+            session.lastResizeCheck(null);
+            return null;
+        }
+        LandService.ResizeCheckResult check = landService.previewResizeCost(player, session.claimName(), bounds);
+        session.lastResizeCheck(check);
+        return check;
+    }
+
+    private void sendResizeSummary(Player player, SelectionSession session, ChunkBounds bounds) {
+        LandService.ResizeCheckResult check = session.lastResizeCheck();
+        if (check == null) {
+            check = refreshResizeCheck(player, session);
+        }
+        String message = plugin.message(check.allowed() ? "resize-select-summary" : "resize-select-summary-invalid")
+            .replace("%name%", session.claimName())
+            .replace("%chunks%", Integer.toString(bounds.area()))
+            .replace("%minX%", Integer.toString(bounds.minChunkX()))
+            .replace("%minZ%", Integer.toString(bounds.minChunkZ()))
+            .replace("%maxX%", Integer.toString(bounds.maxChunkX()))
+            .replace("%maxZ%", Integer.toString(bounds.maxChunkZ()))
+            .replace("%delta%", Integer.toString(check.deltaChunks()))
+            .replace("%price%", formatPrice(check.price()))
+            .replace("%currency%", check.currencyDisplayName());
+        player.sendMessage(message);
+        if (!check.allowed() && check.message() != null && !check.message().isBlank()) {
+            player.sendMessage(check.message());
+        }
     }
 
     private boolean hasSelectionTool(Player player) {
@@ -267,8 +347,10 @@ public final class SelectionService implements Listener {
     }
 
     private static final class SelectionSession {
+        private final SelectionMode mode;
         private final String worldName;
         private final String displayName;
+        private final String claimName;
         private Integer startChunkX;
         private Integer startChunkZ;
         private Integer endChunkX;
@@ -276,10 +358,17 @@ public final class SelectionService implements Listener {
         private BukkitTask previewTask;
         private BukkitTask timeoutTask;
         private LandService.CreateCheckResult lastCheck;
+        private LandService.ResizeCheckResult lastResizeCheck;
 
-        private SelectionSession(String worldName, String displayName) {
+        private SelectionSession(SelectionMode mode, String worldName, String displayName, String claimName) {
+            this.mode = mode;
             this.worldName = worldName;
             this.displayName = displayName;
+            this.claimName = claimName;
+        }
+
+        private SelectionMode mode() {
+            return mode;
         }
 
         private String worldName() {
@@ -288,6 +377,10 @@ public final class SelectionService implements Listener {
 
         private String displayName() {
             return displayName;
+        }
+
+        private String claimName() {
+            return claimName;
         }
 
         private void start(int chunkX, int chunkZ) {
@@ -316,6 +409,14 @@ public final class SelectionService implements Listener {
             this.lastCheck = lastCheck;
         }
 
+        private LandService.ResizeCheckResult lastResizeCheck() {
+            return lastResizeCheck;
+        }
+
+        private void lastResizeCheck(LandService.ResizeCheckResult lastResizeCheck) {
+            this.lastResizeCheck = lastResizeCheck;
+        }
+
         private ChunkBounds bounds() {
             if (startChunkX == null || startChunkZ == null || endChunkX == null || endChunkZ == null) {
                 return null;
@@ -342,5 +443,10 @@ public final class SelectionService implements Listener {
                 timeoutTask = null;
             }
         }
+    }
+
+    private enum SelectionMode {
+        CREATE,
+        RESIZE
     }
 }

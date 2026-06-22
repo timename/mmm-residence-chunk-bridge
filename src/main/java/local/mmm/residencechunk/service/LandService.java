@@ -337,6 +337,56 @@ public final class LandService {
             + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area());
     }
 
+    public ResizeCheckResult prepareResizeClaim(Player player, String residenceName, ChunkBounds newBounds) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return ResizeCheckResult.denied(plugin.message("residence-not-managed"));
+        }
+        return prepareResizeClaim(player, claim, newBounds);
+    }
+
+    public void resizeClaim(Player player, String residenceName, ChunkBounds newBounds) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        ResizeCheckResult check = prepareResizeClaim(player, claim, newBounds);
+        if (!check.allowed()) {
+            if (check.message() != null && !check.message().isBlank()) {
+                player.sendMessage(check.message());
+            }
+            return;
+        }
+        if (check.price() > 0 && !withdrawFunds(player, check.cost(), "mmm-land-resize:" + claim.residenceName())) {
+            player.sendMessage(money(plugin.message("insufficient-funds"), check.price(), check.currencyDisplayName()));
+            return;
+        }
+        boolean updated = residenceHook.replaceArea(check.residence(), player, check.area(), MAIN_AREA, true);
+        if (!updated) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+
+        ManagedClaim updatedClaim = new ManagedClaim(
+            claim.residenceName(),
+            claim.displayName(),
+            claim.ownerUuid(),
+            claim.ownerName(),
+            claim.worldName(),
+            newBounds
+        );
+        dataStore.put(updatedClaim);
+        dataStore.save();
+        player.sendMessage(money(plugin.message("resize-success"), Map.of(
+            "name", updatedClaim.displayName(),
+            "delta", Integer.toString(check.deltaChunks()),
+            "chunks", Integer.toString(updatedClaim.bounds().area())
+        ), check.price(), check.currencyDisplayName()));
+        auditLogService.log(player, "RESIZE", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
+            + " delta=" + check.deltaChunks() + " chunks=" + updatedClaim.bounds().area()
+            + " price=" + formatAmount(check.price()) + " currency=" + check.currencyDisplayName());
+    }
+
     public void deleteClaim(Player player, String residenceName) {
         ManagedClaim claim = requireOwnedClaim(player, residenceName);
         if (claim == null) {
@@ -700,6 +750,14 @@ public final class LandService {
         return new ExpandCost(newBounds, deltaChunks, price, currency, customCurrency);
     }
 
+    public ResizeCheckResult previewResizeCost(Player player, String residenceName, ChunkBounds newBounds) {
+        ManagedClaim claim = resolveOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return ResizeCheckResult.denied(plugin.message("residence-not-managed"));
+        }
+        return prepareResizeClaim(player, claim, newBounds);
+    }
+
     private ManagedClaim requireOwnedClaim(Player player, String residenceName) {
         ManagedClaim claim = resolveOwnedClaim(player, residenceName);
         if (claim == null) {
@@ -834,6 +892,63 @@ public final class LandService {
         }
 
         return new CreateCheckResult(true, null, finalDisplayName, internalName, admin.getWorld().getName(), bounds, 0D);
+    }
+
+    private ResizeCheckResult prepareResizeClaim(Player player, ManagedClaim claim, ChunkBounds newBounds) {
+        if (!player.getWorld().getName().equals(claim.worldName())) {
+            return ResizeCheckResult.denied(plugin.message("select-wrong-world"));
+        }
+        if (!isAllowedShape(newBounds)) {
+            return ResizeCheckResult.denied(plugin.message("rectangle-only"));
+        }
+        if (newBounds.area() < settings.minChunks()) {
+            return ResizeCheckResult.denied(plugin.message("cannot-contract-below-min"));
+        }
+        if (newBounds.area() > settings.maxChunksPerClaim()) {
+            return ResizeCheckResult.denied(render(plugin.message("too-many-chunks"), Map.of(
+                "chunks", Integer.toString(newBounds.area()),
+                "limit", Integer.toString(settings.maxChunksPerClaim())
+            )));
+        }
+        if (isInsideProtectedCenter(newBounds)) {
+            return ResizeCheckResult.denied(plugin.message("inside-protected-center"));
+        }
+
+        World world = requireClaimWorld(player, claim);
+        if (world == null) {
+            return ResizeCheckResult.denied(plugin.message("residence-missing"));
+        }
+        Object manager = getResidenceManager();
+        Object residence = residenceHook.getByName(manager, claim.residenceName());
+        if (residence == null) {
+            return ResizeCheckResult.denied(plugin.message("residence-missing"));
+        }
+        Object area = toArea(world, newBounds);
+        String collision = residenceHook.checkAreaCollision(manager, area, residence, player.getUniqueId());
+        if (collision != null) {
+            return ResizeCheckResult.denied(render(plugin.message("collision"), Map.of("target", collision)));
+        }
+
+        int deltaChunks = newBounds.area() - claim.bounds().area();
+        double price = 0D;
+        String currency = economyService.currencyDisplayName();
+        boolean customCurrency = false;
+        if (deltaChunks > 0) {
+            customCurrency = requiresCustomCurrency(newBounds);
+            price = deltaChunks * (customCurrency ? settings.expandCustomPricePerChunk() : settings.expandPricePerChunk());
+            currency = customCurrency
+                ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
+                : economyService.currencyDisplayName();
+        }
+        ExpandCost cost = new ExpandCost(newBounds, Math.max(0, deltaChunks), price, currency, customCurrency);
+        String availabilityMessage = checkCurrencyAvailability(cost);
+        if (availabilityMessage != null) {
+            return ResizeCheckResult.denied(availabilityMessage);
+        }
+        if (price > 0 && !hasFunds(player, cost)) {
+            return ResizeCheckResult.denied(money(plugin.message("insufficient-funds"), price, currency));
+        }
+        return ResizeCheckResult.allowed(newBounds, area, residence, deltaChunks, cost);
     }
 
     private void adminTransformClaim(Player actor, ManagedClaim claim, String directionInput, String amountInput, boolean expand) {
@@ -1152,5 +1267,31 @@ public final class LandService {
         String currencyDisplayName,
         boolean customCurrency
     ) {
+    }
+
+    public record ResizeCheckResult(
+        boolean allowed,
+        String message,
+        ChunkBounds bounds,
+        Object area,
+        Object residence,
+        int deltaChunks,
+        ExpandCost cost
+    ) {
+        public static ResizeCheckResult denied(String message) {
+            return new ResizeCheckResult(false, message, null, null, null, 0, null);
+        }
+
+        public static ResizeCheckResult allowed(ChunkBounds bounds, Object area, Object residence, int deltaChunks, ExpandCost cost) {
+            return new ResizeCheckResult(true, null, bounds, area, residence, deltaChunks, cost);
+        }
+
+        public double price() {
+            return cost == null ? 0D : cost.price();
+        }
+
+        public String currencyDisplayName() {
+            return cost == null ? "" : cost.currencyDisplayName();
+        }
     }
 }

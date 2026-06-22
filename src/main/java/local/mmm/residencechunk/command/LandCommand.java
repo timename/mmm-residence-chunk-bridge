@@ -102,6 +102,14 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
                 selectionService.startSelection(player, displayName);
                 return true;
             }
+            case "resize" -> {
+                if (args.length < 2) {
+                    player.sendMessage(plugin.message("resize-usage"));
+                    return true;
+                }
+                selectionService.startResizeSelection(player, args[1]);
+                return true;
+            }
             case "confirm" -> {
                 selectionService.confirmSelection(player);
                 return true;
@@ -177,6 +185,7 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("undeny");
             suggestions.add("menu");
             suggestions.add("select");
+            suggestions.add("resize");
             suggestions.add("confirm");
             suggestions.add("cancel");
             suggestions.add("reload");
@@ -220,6 +229,7 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             return filter(landService.getAllClaims().stream().map(claim -> claim.residenceName()).toList(), args[2]);
         }
         if (args.length == 2 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]) || "delete".equalsIgnoreCase(args[0])
+            || "resize".equalsIgnoreCase(args[0])
             || "rename".equalsIgnoreCase(args[0]) || "trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
             || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
             return filter(landService.ownedClaimNames(player), args[1]);

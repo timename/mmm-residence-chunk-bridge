@@ -123,12 +123,15 @@ public final class GuiService implements Listener {
         inventory.setItem(22, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
             "&7信任玩家、取消信任",
             "&7禁止进入、解除禁止"));
-        inventory.setItem(23, actionItem(Material.NAME_TAG, "&b重命名提示",
+        inventory.setItem(23, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
+            "&7使用圈地工具重新选择矩形边界",
+            "&7新增区块会按扩建规则收费"));
+        inventory.setItem(24, actionItem(Material.NAME_TAG, "&b重命名提示",
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
-        inventory.setItem(24, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
-        inventory.setItem(31, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
+        inventory.setItem(30, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
+        inventory.setItem(32, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
         player.openInventory(inventory);
     }
@@ -388,6 +391,9 @@ public final class GuiService implements Listener {
                     return;
                 }
                 openMemberMenu(player, claim);
+            }
+            case "resize_select" -> {
+                player.performCommand("mmmland resize " + fallbackResidenceName);
             }
             case "open_delete" -> {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
