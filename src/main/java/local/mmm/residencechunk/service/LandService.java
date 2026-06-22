@@ -24,28 +24,41 @@ public final class LandService {
     private static final String MAIN_AREA = "main";
 
     private final MMMResidenceChunkBridgePlugin plugin;
-    private final PluginSettings settings;
+    private PluginSettings settings;
     private final LandDataStore dataStore;
     private final EconomyService economyService;
     private final ResidenceHook residenceHook;
+    private final AuditLogService auditLogService;
 
     public LandService(
         MMMResidenceChunkBridgePlugin plugin,
         PluginSettings settings,
         LandDataStore dataStore,
         EconomyService economyService,
-        ResidenceHook residenceHook
+        ResidenceHook residenceHook,
+        AuditLogService auditLogService
     ) {
         this.plugin = plugin;
         this.settings = settings;
         this.dataStore = dataStore;
         this.economyService = economyService;
         this.residenceHook = residenceHook;
+        this.auditLogService = auditLogService;
+    }
+
+    public void reloadSettings(PluginSettings settings) {
+        this.settings = settings;
     }
 
     public List<ManagedClaim> getClaims(UUID ownerUuid) {
         return dataStore.findOwnedBy(ownerUuid).stream()
             .sorted(Comparator.comparing(ManagedClaim::residenceName))
+            .toList();
+    }
+
+    public List<ManagedClaim> getAllClaims() {
+        return dataStore.allClaims().stream()
+            .sorted(Comparator.comparing(ManagedClaim::ownerName).thenComparing(ManagedClaim::residenceName))
             .toList();
     }
 
@@ -56,6 +69,10 @@ public final class LandService {
     }
 
     public CreateCheckResult prepareCreateClaim(Player player, String displayName) {
+        return prepareCreateClaim(player, displayName, ChunkBounds.single(player.getChunk()));
+    }
+
+    public CreateCheckResult prepareCreateClaim(Player player, String displayName, ChunkBounds bounds) {
         if (!isAllowedWorld(player.getWorld().getName())) {
             return CreateCheckResult.denied(plugin.message("world-not-allowed"));
         }
@@ -67,7 +84,14 @@ public final class LandService {
         }
 
         int nextOrdinal = currentClaims + 1;
-        double price = getCreatePrice(nextOrdinal);
+        if (bounds.area() > settings.maxChunksPerClaim()) {
+            return CreateCheckResult.denied(render(plugin.message("too-many-chunks"), Map.of(
+                "chunks", Integer.toString(bounds.area()),
+                "limit", Integer.toString(settings.maxChunksPerClaim())
+            )));
+        }
+
+        double price = getCreatePrice(nextOrdinal, bounds.area());
         if (price > 0 && !economyService.has(player.getUniqueId(), price)) {
             return CreateCheckResult.denied(money(plugin.message("insufficient-funds"), price));
         }
@@ -77,7 +101,6 @@ public final class LandService {
             return CreateCheckResult.denied(null);
         }
 
-        ChunkBounds bounds = ChunkBounds.single(player.getChunk());
         if (isInsideProtectedCenter(bounds)) {
             return CreateCheckResult.denied(plugin.message("inside-protected-center"));
         }
@@ -94,7 +117,15 @@ public final class LandService {
     }
 
     public void createClaim(Player player, String displayName) {
-        CreateCheckResult check = prepareCreateClaim(player, displayName);
+        createClaim(player, displayName, ChunkBounds.single(player.getChunk()));
+    }
+
+    public void createClaim(Player player, String displayName, ChunkBounds bounds) {
+        CreateCheckResult check = prepareCreateClaim(player, displayName, bounds);
+        createPreparedClaim(player, check);
+    }
+
+    public void createPreparedClaim(Player player, CreateCheckResult check) {
         if (!check.allowed()) {
             if (check.message() != null && !check.message().isBlank()) {
                 player.sendMessage(check.message());
@@ -140,6 +171,8 @@ public final class LandService {
             Map.of("name", claim.displayName()),
             check.price()
         ));
+        auditLogService.log(player, "CREATE", "claim=" + claim.residenceName() + " display=" + claim.displayName()
+            + " world=" + claim.worldName() + " chunks=" + claim.bounds().area() + " price=" + formatAmount(check.price()));
     }
 
     public void expandClaim(Player player, String residenceName, String directionInput, String amountInput) {
@@ -215,6 +248,8 @@ public final class LandService {
             Map.of("name", updatedClaim.displayName(), "delta", Integer.toString(deltaChunks)),
             price
         ));
+        auditLogService.log(player, "EXPAND", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
+            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area() + " price=" + formatAmount(price));
     }
 
     public void contractClaim(Player player, String residenceName, String directionInput, String amountInput) {
@@ -274,6 +309,8 @@ public final class LandService {
             plugin.message("contract-success"),
             Map.of("name", updatedClaim.displayName(), "delta", Integer.toString(deltaChunks))
         ));
+        auditLogService.log(player, "CONTRACT", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
+            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area());
     }
 
     public void deleteClaim(Player player, String residenceName) {
@@ -293,6 +330,86 @@ public final class LandService {
         dataStore.remove(claim.residenceName());
         dataStore.save();
         player.sendMessage(render(plugin.message("delete-success"), Map.of("name", claim.displayName())));
+        auditLogService.log(player, "DELETE", "claim=" + claim.residenceName() + " display=" + claim.displayName());
+    }
+
+    public void adminListClaims(Player player) {
+        List<ManagedClaim> claims = getAllClaims();
+        if (claims.isEmpty()) {
+            player.sendMessage(plugin.message("no-managed-claims"));
+            return;
+        }
+        player.sendMessage(plugin.message("admin-list-header").replace("%count%", Integer.toString(claims.size())));
+        for (ManagedClaim claim : claims) {
+            player.sendMessage(render(
+                plugin.message("admin-list-entry"),
+                Map.of(
+                    "owner", claim.ownerName(),
+                    "display", claim.displayName(),
+                    "name", claim.residenceName(),
+                    "world", claim.worldName(),
+                    "chunks", Integer.toString(claim.bounds().area())
+                )
+            ));
+        }
+    }
+
+    public void adminCheckClaims(Player player) {
+        int missing = 0;
+        Object manager = getResidenceManager();
+        for (ManagedClaim claim : getAllClaims()) {
+            if (residenceHook.getByName(manager, claim.residenceName()) == null) {
+                missing++;
+                player.sendMessage(render(plugin.message("admin-check-missing"), Map.of(
+                    "owner", claim.ownerName(),
+                    "display", claim.displayName(),
+                    "name", claim.residenceName()
+                )));
+            }
+        }
+        player.sendMessage(plugin.message("admin-check-done")
+            .replace("%missing%", Integer.toString(missing))
+            .replace("%total%", Integer.toString(getAllClaims().size())));
+    }
+
+    public void adminCleanClaims(Player player) {
+        int removed = 0;
+        Object manager = getResidenceManager();
+        for (ManagedClaim claim : getAllClaims()) {
+            if (residenceHook.getByName(manager, claim.residenceName()) == null) {
+                dataStore.remove(claim.residenceName());
+                removed++;
+                auditLogService.log(player, "ADMIN_CLEAN", "claim=" + claim.residenceName()
+                    + " display=" + claim.displayName() + " owner=" + claim.ownerName());
+            }
+        }
+        if (removed > 0) {
+            dataStore.save();
+        }
+        player.sendMessage(plugin.message("admin-clean-done").replace("%removed%", Integer.toString(removed)));
+    }
+
+    public void adminDeleteClaim(Player player, String residenceName) {
+        ManagedClaim claim = resolveAnyClaim(residenceName);
+        if (claim == null) {
+            player.sendMessage(plugin.message("residence-not-managed"));
+            return;
+        }
+
+        Object manager = getResidenceManager();
+        Object residence = residenceHook.getByName(manager, claim.residenceName());
+        if (residence != null) {
+            residenceHook.removeResidence(manager, player, residence, true);
+        }
+        dataStore.remove(claim.residenceName());
+        dataStore.save();
+        player.sendMessage(render(plugin.message("admin-delete-success"), Map.of(
+            "owner", claim.ownerName(),
+            "display", claim.displayName(),
+            "name", claim.residenceName()
+        )));
+        auditLogService.log(player, "ADMIN_DELETE", "claim=" + claim.residenceName() + " display=" + claim.displayName()
+            + " owner=" + claim.ownerName());
     }
 
     public void renameClaim(Player player, String currentName, String newDisplayName) {
@@ -384,7 +501,7 @@ public final class LandService {
     }
 
     public double previewCreatePrice(Player player) {
-        return getCreatePrice(getClaims(player.getUniqueId()).size() + 1);
+        return getCreatePrice(getClaims(player.getUniqueId()).size() + 1, 1);
     }
 
     public double getExpandPricePerChunk() {
@@ -415,6 +532,17 @@ public final class LandService {
         return claim;
     }
 
+    private ManagedClaim resolveAnyClaim(String input) {
+        ManagedClaim exactInternal = dataStore.find(input);
+        if (exactInternal != null) {
+            return exactInternal;
+        }
+        List<ManagedClaim> displayMatches = getAllClaims().stream()
+            .filter(claim -> claim.displayName().equalsIgnoreCase(input))
+            .toList();
+        return displayMatches.size() == 1 ? displayMatches.get(0) : null;
+    }
+
     private Object getResidenceManager() {
         return residenceHook.getResidenceManager();
     }
@@ -441,18 +569,20 @@ public final class LandService {
         return limit;
     }
 
-    private double getCreatePrice(int ordinal) {
+    private double getCreatePrice(int ordinal, int chunks) {
+        double basePrice;
         Double exact = settings.createTiers().get(ordinal);
         if (exact != null) {
-            return exact;
+            basePrice = exact;
+        } else if (!settings.fallbackLastTier() || settings.createTiers().isEmpty()) {
+            basePrice = 0D;
+        } else {
+            basePrice = settings.createTiers().entrySet().stream()
+                .max(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .orElse(0D);
         }
-        if (!settings.fallbackLastTier() || settings.createTiers().isEmpty()) {
-            return 0D;
-        }
-        return settings.createTiers().entrySet().stream()
-            .max(Map.Entry.comparingByKey())
-            .map(Map.Entry::getValue)
-            .orElse(0D);
+        return basePrice + (Math.max(0, chunks - 1) * settings.createPricePerExtraChunk());
     }
 
     private String generateInternalName(Player player) {

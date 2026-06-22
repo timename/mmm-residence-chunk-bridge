@@ -7,12 +7,36 @@ items:
     name: "&a&l领地菜单"
     lore:
       - ""
-      - "&7点击打开区块化领地菜单"
-      - "&7底层保护由 Residence 提供"
-    slot: 13
+      - "&7打开完整领地管理菜单"
+      - "&7创建、查看、扩张、缩小和删除领地"
+    slot: 11
     actions:
       - menu close
       - command "mmmland menu"
+
+  可视化选区圈地:
+    material: golden_shovel
+    name: "&a&l可视化选区圈地"
+    lore:
+      - ""
+      - "&7左键方块选择起点区块"
+      - "&7右键方块选择终点区块"
+      - "&7选好后输入 &f确认 &7完成创建"
+    slot: 13
+    actions:
+      - menu close
+      - command "mmmland select"
+
+  取消选区:
+    material: redstone
+    name: "&e&l取消当前选区"
+    lore:
+      - ""
+      - "&7退出正在进行的可视化圈地"
+    slot: 15
+    actions:
+      - menu close
+      - command "mmmland cancel"
 
   关闭:
     material: barrier

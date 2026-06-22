@@ -14,7 +14,6 @@ import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -30,7 +29,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scheduler.BukkitTask;
 
 public final class GuiService implements Listener {
 
@@ -38,13 +36,16 @@ public final class GuiService implements Listener {
 
     private final MMMResidenceChunkBridgePlugin plugin;
     private final LandService landService;
+    private final VisualService visualService;
     private final NamespacedKey claimKey;
     private final NamespacedKey actionKey;
     private final Map<UUID, PendingCreation> pendingCreations = new ConcurrentHashMap<>();
+    private final Map<UUID, PendingTransform> pendingTransforms = new ConcurrentHashMap<>();
 
-    public GuiService(MMMResidenceChunkBridgePlugin plugin, LandService landService) {
+    public GuiService(MMMResidenceChunkBridgePlugin plugin, LandService landService, VisualService visualService) {
         this.plugin = plugin;
         this.landService = landService;
+        this.visualService = visualService;
         this.claimKey = new NamespacedKey(plugin, "claim_name");
         this.actionKey = new NamespacedKey(plugin, "claim_action");
     }
@@ -53,11 +54,15 @@ public final class GuiService implements Listener {
         Inventory inventory = Bukkit.createInventory(new MainMenuHolder(), 27,
             plugin.color(plugin.getConfig().getString("messages.gui.main-title", "&8领地菜单")));
         fillBackground(inventory);
-        inventory.setItem(11, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
+        inventory.setItem(10, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
             "&7在你当前所在区块创建整列领地",
             "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
             "&b点击后关闭菜单，显示粒子范围",
             "&b随后在聊天栏输入“确认”完成创建"));
+        inventory.setItem(12, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
+            "&7左键方块选择起点区块",
+            "&7右键方块选择终点区块",
+            "&b选好后输入 确认 或执行 /mmmland confirm"));
         inventory.setItem(13, createItem(Material.MAP, "&b我的领地",
             "&7查看你的领地列表",
             "&7点击打开"));
@@ -227,13 +232,20 @@ public final class GuiService implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPendingCreateChat(AsyncPlayerChatEvent event) {
         PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
-        if (pending == null) {
+        PendingTransform transform = pendingTransforms.get(event.getPlayer().getUniqueId());
+        if (pending == null && transform == null) {
             return;
         }
 
         event.setCancelled(true);
         String message = event.getMessage().trim();
-        Bukkit.getScheduler().runTask(plugin, () -> handlePendingCreateChat(event.getPlayer(), message));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (pendingCreations.containsKey(event.getPlayer().getUniqueId())) {
+                handlePendingCreateChat(event.getPlayer(), message);
+            } else {
+                handlePendingTransformChat(event.getPlayer(), message);
+            }
+        });
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -254,11 +266,13 @@ public final class GuiService implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         cancelPendingCreation(event.getPlayer(), null);
+        cancelPendingTransform(event.getPlayer(), null);
     }
 
     private void handleMainMenuClick(Player player, int rawSlot) {
         switch (rawSlot) {
-            case 11 -> startCreateConfirmation(player);
+            case 10 -> startCreateConfirmation(player);
+            case 12 -> player.performCommand("mmmland select");
             case 13 -> openClaimsMenu(player);
             default -> {
             }
@@ -341,21 +355,8 @@ public final class GuiService implements Listener {
                 String amount = parts[4];
                 ManagedClaim previewClaim = landService.resolveOwnedClaim(player, claimName);
                 if (previewClaim != null) {
-                    previewBounds(player, landService.previewBounds(previewClaim, mode == Mode.EXPAND, direction, Integer.parseInt(amount)), previewClaim.worldName());
+                    startTransformConfirmation(player, previewClaim, mode, direction, amount);
                 }
-                if (mode == Mode.EXPAND) {
-                    landService.expandClaim(player, claimName, direction, amount);
-                } else {
-                    landService.contractClaim(player, claimName, direction, amount);
-                }
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    ManagedClaim refreshed = landService.resolveOwnedClaim(player, claimName);
-                    if (refreshed != null) {
-                        openClaimDetailMenu(player, refreshed);
-                    } else {
-                        openClaimsMenu(player);
-                    }
-                });
             }
             case "delete" -> {
                 if (parts.length < 3) {
@@ -378,6 +379,7 @@ public final class GuiService implements Listener {
         }
 
         cancelPendingCreation(player, null);
+        cancelPendingTransform(player, null);
         PendingCreation pending = new PendingCreation(player.getUniqueId(), check.displayName(), check.worldName(), check.bounds(), check.price());
         pendingCreations.put(player.getUniqueId(), pending);
 
@@ -410,11 +412,63 @@ public final class GuiService implements Listener {
         }
 
         pendingCreations.remove(player.getUniqueId());
-        landService.createClaim(player, pending.displayName());
+        landService.createClaim(player, pending.displayName(), pending.bounds());
     }
 
     private void cancelPendingCreation(Player player, String messagePath) {
         PendingCreation removed = pendingCreations.remove(player.getUniqueId());
+        if (removed != null && messagePath != null) {
+            player.sendMessage(plugin.message(messagePath));
+        }
+    }
+
+    private void startTransformConfirmation(Player player, ManagedClaim claim, Mode mode, String direction, String amount) {
+        cancelPendingCreation(player, null);
+        cancelPendingTransform(player, null);
+        int parsedAmount = Integer.parseInt(amount);
+        ChunkBounds newBounds = landService.previewBounds(claim, mode == Mode.EXPAND, direction, parsedAmount);
+        previewBounds(player, newBounds, claim.worldName());
+        pendingTransforms.put(player.getUniqueId(), new PendingTransform(claim.displayName(), mode, direction, amount));
+        player.closeInventory();
+        int delta = mode == Mode.EXPAND ? newBounds.area() - claim.bounds().area() : claim.bounds().area() - newBounds.area();
+        String messagePath = mode == Mode.EXPAND ? "transform-preview-expand" : "transform-preview-contract";
+        player.sendMessage(plugin.message(messagePath)
+            .replace("%name%", claim.displayName())
+            .replace("%delta%", Integer.toString(delta))
+            .replace("%price%", formatPrice(delta * landService.getExpandPricePerChunk()))
+            .replace("%currency%", plugin.settings().currencyDisplayName()));
+        player.sendMessage(plugin.message("transform-confirm-instruction"));
+    }
+
+    private void handlePendingTransformChat(Player player, String message) {
+        PendingTransform pending = pendingTransforms.get(player.getUniqueId());
+        if (pending == null) {
+            return;
+        }
+        if ("取消".equalsIgnoreCase(message) || "cancel".equalsIgnoreCase(message)) {
+            cancelPendingTransform(player, "transform-cancelled");
+            return;
+        }
+        if (!"确认".equalsIgnoreCase(message) && !"confirm".equalsIgnoreCase(message)) {
+            player.sendMessage(plugin.message("create-confirm-invalid"));
+            return;
+        }
+        pendingTransforms.remove(player.getUniqueId());
+        if (pending.mode() == Mode.EXPAND) {
+            landService.expandClaim(player, pending.claimName(), pending.direction(), pending.amount());
+        } else {
+            landService.contractClaim(player, pending.claimName(), pending.direction(), pending.amount());
+        }
+        ManagedClaim refreshed = landService.resolveOwnedClaim(player, pending.claimName());
+        if (refreshed != null) {
+            openClaimDetailMenu(player, refreshed);
+        } else {
+            openClaimsMenu(player);
+        }
+    }
+
+    private void cancelPendingTransform(Player player, String messagePath) {
+        PendingTransform removed = pendingTransforms.remove(player.getUniqueId());
         if (removed != null && messagePath != null) {
             player.sendMessage(plugin.message(messagePath));
         }
@@ -489,46 +543,8 @@ public final class GuiService implements Listener {
     }
 
     private void previewBounds(Player player, ChunkBounds bounds, String worldName) {
-        if (!player.getWorld().getName().equals(worldName)) {
-            return;
-        }
         int durationTicks = Math.max(20, plugin.getConfig().getInt("visual.preview-duration-ticks", 80));
-        int step = Math.max(1, plugin.getConfig().getInt("visual.preview-step-blocks", 2));
-        Particle particle = Particle.valueOf(plugin.getConfig().getString("visual.preview-particle", "END_ROD"));
-        int minX = bounds.minChunkX() << 4;
-        int minZ = bounds.minChunkZ() << 4;
-        int maxX = (bounds.maxChunkX() << 4) + 15;
-        int maxZ = (bounds.maxChunkZ() << 4) + 15;
-        double y = Math.max(player.getLocation().getY(), player.getWorld().getMinHeight() + 1);
-        BukkitTask[] taskRef = new BukkitTask[1];
-        taskRef[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            if (!player.isOnline()) {
-                if (taskRef[0] != null) {
-                    taskRef[0].cancel();
-                }
-                return;
-            }
-            for (int x = minX; x <= maxX; x += step) {
-                player.spawnParticle(particle, x + 0.5, y, minZ + 0.5, 1, 0, 0, 0, 0);
-                player.spawnParticle(particle, x + 0.5, y, maxZ + 0.5, 1, 0, 0, 0, 0);
-            }
-            for (int z = minZ; z <= maxZ; z += step) {
-                player.spawnParticle(particle, minX + 0.5, y, z + 0.5, 1, 0, 0, 0, 0);
-                player.spawnParticle(particle, maxX + 0.5, y, z + 0.5, 1, 0, 0, 0, 0);
-            }
-            Particle.DustOptions dust = new Particle.DustOptions(Color.AQUA, 1.4f);
-            for (double cornerY = y; cornerY <= y + 3; cornerY += 1) {
-                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, minZ + 0.5, 1, dust);
-                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, minZ + 0.5, 1, dust);
-                player.spawnParticle(Particle.DUST, minX + 0.5, cornerY, maxZ + 0.5, 1, dust);
-                player.spawnParticle(Particle.DUST, maxX + 0.5, cornerY, maxZ + 0.5, 1, dust);
-            }
-        }, 0L, 10L);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (taskRef[0] != null) {
-                taskRef[0].cancel();
-            }
-        }, durationTicks);
+        visualService.previewForDuration(player, bounds, worldName, Color.AQUA, durationTicks);
     }
 
     private String formatPrice(double amount) {
@@ -565,6 +581,9 @@ public final class GuiService implements Listener {
     }
 
     private record PendingCreation(UUID playerUuid, String displayName, String worldName, ChunkBounds bounds, double price) {
+    }
+
+    private record PendingTransform(String claimName, Mode mode, String direction, String amount) {
     }
 
     public enum Mode {

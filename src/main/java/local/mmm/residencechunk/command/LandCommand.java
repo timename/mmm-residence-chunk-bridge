@@ -5,6 +5,7 @@ import java.util.List;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
 import local.mmm.residencechunk.service.GuiService;
 import local.mmm.residencechunk.service.LandService;
+import local.mmm.residencechunk.service.SelectionService;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,11 +17,13 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
     private final MMMResidenceChunkBridgePlugin plugin;
     private final LandService landService;
     private final GuiService guiService;
+    private final SelectionService selectionService;
 
-    public LandCommand(MMMResidenceChunkBridgePlugin plugin, LandService landService, GuiService guiService) {
+    public LandCommand(MMMResidenceChunkBridgePlugin plugin, LandService landService, GuiService guiService, SelectionService selectionService) {
         this.plugin = plugin;
         this.landService = landService;
         this.guiService = guiService;
+        this.selectionService = selectionService;
     }
 
     @Override
@@ -60,6 +63,36 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             }
             case "menu" -> {
                 guiService.openMainMenu(player);
+                return true;
+            }
+            case "select" -> {
+                String displayName = args.length >= 2 ? String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length)) : null;
+                selectionService.startSelection(player, displayName);
+                return true;
+            }
+            case "confirm" -> {
+                selectionService.confirmSelection(player);
+                return true;
+            }
+            case "cancel" -> {
+                selectionService.cancelSelection(player, "select-cancelled");
+                return true;
+            }
+            case "reload" -> {
+                if (!player.hasPermission("mmmland.admin")) {
+                    player.sendMessage(plugin.message("no-permission"));
+                    return true;
+                }
+                plugin.reloadPluginConfig();
+                player.sendMessage(plugin.message("reload-success"));
+                return true;
+            }
+            case "admin" -> {
+                if (!player.hasPermission("mmmland.admin")) {
+                    player.sendMessage(plugin.message("no-permission"));
+                    return true;
+                }
+                handleAdmin(player, args);
                 return true;
             }
             case "expand" -> {
@@ -107,8 +140,23 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("contract");
             suggestions.add("delete");
             suggestions.add("menu");
+            suggestions.add("select");
+            suggestions.add("confirm");
+            suggestions.add("cancel");
+            suggestions.add("reload");
+            suggestions.add("admin");
             suggestions.add("help");
             return filter(suggestions, args[0]);
+        }
+        if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
+            suggestions.add("list");
+            suggestions.add("check");
+            suggestions.add("clean");
+            suggestions.add("delete");
+            return filter(suggestions, args[1]);
+        }
+        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && "delete".equalsIgnoreCase(args[1])) {
+            return filter(landService.getAllClaims().stream().map(claim -> claim.residenceName()).toList(), args[2]);
         }
         if (args.length == 2 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]) || "delete".equalsIgnoreCase(args[0]) || "rename".equalsIgnoreCase(args[0]))) {
             return filter(landService.ownedClaimNames(player), args[1]);
@@ -135,5 +183,25 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
         return input.stream()
             .filter(entry -> entry.toLowerCase().startsWith(lowered))
             .toList();
+    }
+
+    private void handleAdmin(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(plugin.message("admin-usage"));
+            return;
+        }
+        switch (args[1].toLowerCase()) {
+            case "list" -> landService.adminListClaims(player);
+            case "check" -> landService.adminCheckClaims(player);
+            case "clean" -> landService.adminCleanClaims(player);
+            case "delete" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("admin-delete-usage"));
+                    return;
+                }
+                landService.adminDeleteClaim(player, args[2]);
+            }
+            default -> player.sendMessage(plugin.message("admin-usage"));
+        }
     }
 }

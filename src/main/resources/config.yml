@@ -11,6 +11,7 @@ claims:
   internal-name-prefix: "chunk"
   full-height: true
   min-chunks: 1
+  max-chunks-per-claim: 64
   no-claim-radius-blocks: 0
   protected-center-x: 0
   protected-center-z: 0
@@ -21,6 +22,12 @@ visual:
   preview-duration-ticks: 80
   preview-step-blocks: 2
   preview-particle: END_ROD
+
+selection:
+  tool: GOLDEN_SHOVEL
+  require-tool: true
+  timeout-seconds: 120
+  preview-period-ticks: 10
 
 limits:
   default-max-claims: 4
@@ -33,6 +40,7 @@ limits:
 pricing:
   create:
     fallback-last-tier: true
+    price-per-extra-chunk: 500
     tiers:
       1: 0
       2: 1000
@@ -72,12 +80,39 @@ messages:
   invalid-direction: "&c方向必须是 north、south、east 或 west。"
   invalid-amount: "&c区块数必须是大于 0 的整数。"
   too-many-claims: "&c你的领地数量已达到上限: &f%limit%"
+  too-many-chunks: "&c当前选区过大，共 &f%chunks% &c个区块，单个领地最多 &f%limit% &c个区块。"
   create-preview: "&e即将创建领地 &f%name%&e，价格: &f%price% %currency%"
   create-confirm-instruction: "&b请输入“确认”完成创建，输入“取消”退出。离开当前预览范围会自动取消。"
   create-confirm-invalid: "&c请输入“确认”完成创建，或输入“取消”退出。"
   create-cancelled: "&e已取消本次圈地确认。"
   create-cancelled-leave: "&e你已离开预览范围，本次圈地确认已自动取消。"
+  transform-preview-expand: "&e即将扩张领地 &f%name%&e，新增 &f%delta% &e个区块，价格 &f%price% %currency%"
+  transform-preview-contract: "&e即将缩小领地 &f%name%&e，减少 &f%delta% &e个区块，本操作不返还货币。"
+  transform-confirm-instruction: "&b请输入“确认”执行本次调整，或输入“取消”退出。"
+  transform-cancelled: "&e已取消本次领地调整。"
+  select-start: "&a已进入可视化选区圈地模式。"
+  select-instruction: "&b左键方块选择起点区块，右键方块选择终点区块。选好后输入“确认”或执行 /mmmland confirm，输入“取消”退出。"
+  select-none: "&c你当前没有正在进行的选区。"
+  select-incomplete: "&c请先左键选择起点区块，再右键选择终点区块。"
+  select-wrong-world: "&c只能在开始选区的世界内选择区块。"
+  select-tool-required: "&c请手持 &f%tool% &c再选择区块。"
+  select-timeout: "&e可视化选区超时，已自动取消。"
+  select-cancelled: "&e已取消可视化选区。"
+  select-cancelled-world: "&e你已离开选区世界，本次可视化选区已取消。"
+  select-start-point: "&a已设置起点区块: &f%x%, %z%"
+  select-end-point: "&a已设置终点区块: &f%x%, %z%"
+  select-summary: "&a当前选区: &f%minX%,%minZ% -> %maxX%,%maxZ% &7共 &f%chunks% &7个区块，价格 &f%price% %currency%&7。输入 &f确认 &7完成创建。"
+  select-summary-invalid: "&c当前选区不可创建: &f%minX%,%minZ% -> %maxX%,%maxZ% &7共 &f%chunks% &7个区块。"
   no-managed-claims: "&7你还没有通过本插件创建的领地。"
+  reload-success: "&a领地插件配置已重载。"
+  admin-usage: "&e用法: /mmmland admin <list|check|clean|delete>"
+  admin-delete-usage: "&e用法: /mmmland admin delete <内部领地名>"
+  admin-list-header: "&e当前托管领地共 &f%count% &e个:"
+  admin-list-entry: "&6- &f%display% &7(%name%) &7所有者: &f%owner% &7世界: &f%world% &7区块: &f%chunks%"
+  admin-check-missing: "&c缺失 Residence 领地: &f%display% &7(%name%) &7所有者: &f%owner%"
+  admin-check-done: "&a自检完成，缺失 &f%missing%&a / &f%total% &a个托管领地。"
+  admin-clean-done: "&a清理完成，已移除 &f%removed% &a条失效托管记录。"
+  admin-delete-success: "&a已强制删除托管领地: &f%display% &7(%name%) &7所有者: &f%owner%"
   gui:
     main-title: "&8领地菜单"
     list-title: "&8我的领地"
@@ -87,6 +122,11 @@ messages:
     delete-confirm-title: "&8确认删除"
   help:
     - "&e/mmmland create [显示名] &7在当前区块创建整列领地"
+    - "&e/mmmland select [显示名] &7开始可视化选区圈地"
+    - "&e/mmmland confirm &7确认当前可视化选区"
+    - "&e/mmmland cancel &7取消当前可视化选区"
+    - "&e/mmmland reload &7重载配置"
+    - "&e/mmmland admin <list|check|clean|delete> &7管理员工具"
     - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名称"
     - "&e/mmmland list &7查看你的领地"
     - "&e/mmmland expand <领地名> <方向> <区块数> &7按区块扩张"

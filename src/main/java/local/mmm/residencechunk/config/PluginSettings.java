@@ -14,6 +14,7 @@ public record PluginSettings(
     String internalNamePrefix,
     boolean fullHeight,
     int minChunks,
+    int maxChunksPerClaim,
     int noClaimRadiusBlocks,
     int protectedCenterX,
     int protectedCenterZ,
@@ -21,8 +22,13 @@ public record PluginSettings(
     Map<String, Integer> permissionMaxClaims,
     Map<Integer, Double> createTiers,
     boolean fallbackLastTier,
+    double createPricePerExtraChunk,
     double expandPricePerChunk,
-    boolean contractRefundEnabled
+    boolean contractRefundEnabled,
+    String selectionTool,
+    boolean selectionRequireTool,
+    int selectionTimeoutSeconds,
+    int selectionPreviewPeriodTicks
 ) {
 
     public static PluginSettings fromConfig(FileConfiguration config) {
@@ -31,6 +37,7 @@ public record PluginSettings(
         String internalNamePrefix = config.getString("claims.internal-name-prefix", "chunk");
         boolean fullHeight = config.getBoolean("claims.full-height", true);
         int minChunks = Math.max(1, config.getInt("claims.min-chunks", 1));
+        int maxChunksPerClaim = Math.max(minChunks, config.getInt("claims.max-chunks-per-claim", 64));
         int noClaimRadiusBlocks = Math.max(0, config.getInt("claims.no-claim-radius-blocks", 0));
         int protectedCenterX = config.getInt("claims.protected-center-x", 0);
         int protectedCenterZ = config.getInt("claims.protected-center-z", 0);
@@ -58,8 +65,13 @@ public record PluginSettings(
         }
 
         boolean fallbackLastTier = config.getBoolean("pricing.create.fallback-last-tier", true);
+        double createPricePerExtraChunk = Math.max(0D, config.getDouble("pricing.create.price-per-extra-chunk", 500D));
         double expandPricePerChunk = Math.max(0D, config.getDouble("pricing.expand.price-per-chunk", 0D));
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
+        String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");
+        boolean selectionRequireTool = config.getBoolean("selection.require-tool", true);
+        int selectionTimeoutSeconds = Math.max(15, config.getInt("selection.timeout-seconds", 120));
+        int selectionPreviewPeriodTicks = Math.max(2, config.getInt("selection.preview-period-ticks", 10));
 
         return new PluginSettings(
             Collections.unmodifiableSet(allowedWorlds),
@@ -67,6 +79,7 @@ public record PluginSettings(
             internalNamePrefix,
             fullHeight,
             minChunks,
+            maxChunksPerClaim,
             noClaimRadiusBlocks,
             protectedCenterX,
             protectedCenterZ,
@@ -74,8 +87,13 @@ public record PluginSettings(
             Collections.unmodifiableMap(permissionMaxClaims),
             Collections.unmodifiableMap(createTiers),
             fallbackLastTier,
+            createPricePerExtraChunk,
             expandPricePerChunk,
-            contractRefundEnabled
+            contractRefundEnabled,
+            selectionTool,
+            selectionRequireTool,
+            selectionTimeoutSeconds,
+            selectionPreviewPeriodTicks
         );
     }
 }
