@@ -20,6 +20,18 @@ public final class ConfigComments {
             "允许玩家创建、扩建、调整领地的世界名列表。",
             "世界名必须和服务器实际世界文件夹 / Bukkit 世界名一致。",
             "为空时表示不限制世界。");
+        comment(config, "world-claim-rules", "每个世界的圈地距离规则。");
+        comment(config, "world-claim-rules.admin-bypass",
+            "管理员使用 /mmmland admin create/expand/contract 时是否绕过距离限制。");
+        comment(config, "world-claim-rules.worlds",
+            "按世界名配置距离限制。",
+            "未配置的世界只受 allowed-worlds 控制。");
+        comment(config, "world-claim-rules.worlds.world.min-distance-from-origin-xz",
+            "领地必须整体距离 X=0,Z=0 至少多少格。",
+            "0 表示不限制最小距离。");
+        comment(config, "world-claim-rules.worlds.world.max-distance-from-origin-xz",
+            "领地最远处距离 X=0,Z=0 不能超过多少格。",
+            "0 表示不限制最大距离。");
 
         comment(config, "currency", "Vault 金币显示配置。");
         comment(config, "currency.display-name",

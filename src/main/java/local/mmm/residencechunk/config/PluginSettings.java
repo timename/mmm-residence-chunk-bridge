@@ -19,6 +19,8 @@ public record PluginSettings(
     int noClaimRadiusBlocks,
     int protectedCenterX,
     int protectedCenterZ,
+    boolean worldClaimRulesAdminBypass,
+    Map<String, WorldClaimRule> worldClaimRules,
     int defaultMaxClaims,
     Map<String, Integer> permissionMaxClaims,
     Map<Integer, Double> createTiers,
@@ -50,6 +52,16 @@ public record PluginSettings(
         int noClaimRadiusBlocks = Math.max(0, config.getInt("claims.no-claim-radius-blocks", 0));
         int protectedCenterX = config.getInt("claims.protected-center-x", 0);
         int protectedCenterZ = config.getInt("claims.protected-center-z", 0);
+        boolean worldClaimRulesAdminBypass = config.getBoolean("world-claim-rules.admin-bypass", true);
+        Map<String, WorldClaimRule> worldClaimRules = new HashMap<>();
+        ConfigurationSection worldRulesSection = config.getConfigurationSection("world-claim-rules.worlds");
+        if (worldRulesSection != null) {
+            for (String worldName : worldRulesSection.getKeys(false)) {
+                int minDistance = Math.max(0, worldRulesSection.getInt(worldName + ".min-distance-from-origin-xz", 0));
+                int maxDistance = Math.max(0, worldRulesSection.getInt(worldName + ".max-distance-from-origin-xz", 0));
+                worldClaimRules.put(worldName, new WorldClaimRule(minDistance, maxDistance));
+            }
+        }
         int defaultMaxClaims = Math.max(0, config.getInt("limits.default-max-claims", 4));
 
         Map<String, Integer> permissionMaxClaims = new HashMap<>();
@@ -109,6 +121,8 @@ public record PluginSettings(
             noClaimRadiusBlocks,
             protectedCenterX,
             protectedCenterZ,
+            worldClaimRulesAdminBypass,
+            Collections.unmodifiableMap(worldClaimRules),
             defaultMaxClaims,
             Collections.unmodifiableMap(permissionMaxClaims),
             Collections.unmodifiableMap(createTiers),
@@ -128,5 +142,11 @@ public record PluginSettings(
             teleportDefaultDelaySeconds,
             Collections.unmodifiableMap(teleportPermissionDelays)
         );
+    }
+
+    public record WorldClaimRule(
+        int minDistanceFromOriginXz,
+        int maxDistanceFromOriginXz
+    ) {
     }
 }

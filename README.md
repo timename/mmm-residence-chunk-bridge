@@ -7,7 +7,7 @@
 - 按区块创建、扩张、缩小领地
 - 自动覆盖整列高度
 - 统一价格、权限、世界和面积限制
-- Bukkit GUI + Invero 入口
+- 插件内置 Bukkit GUI
 - 可视化粒子选区
 - 聊天确认，减少误操作
 - 本插件维护托管领地元数据
@@ -37,7 +37,6 @@
 
 可选：
 
-- Invero，用于服务器统一菜单入口
 - MMMVaultSync，用于超过金币扩建上限后的自定义货币扣费
 
 ## 构建
@@ -67,12 +66,6 @@ plugins/MMMResidenceChunkBridge/config.yml
 plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
 plugins/MMMResidenceChunkBridge/claims.yml
 plugins/MMMResidenceChunkBridge/operations.log
-```
-
-如果检测到 Invero，会自动导出入口菜单到：
-
-```text
-plugins/Invero/workspace/MMM领地入口.yml
 ```
 
 ## 玩家功能
@@ -275,6 +268,14 @@ mmmland.admin
 
 会重新读取 `config.yml`，同时由插件代码补回配置中文注释。
 
+### 管理员传送
+
+```text
+/mmmland admin tp <玩家名> <领地名>
+```
+
+可以传送到指定玩家的任意托管领地，不要求目标领地开启公开传送。该命令需要 `mmmland.admin`。
+
 ### 查看托管领地
 
 ```text
@@ -361,9 +362,24 @@ mmmland.limit.8
 ```yml
 allowed-worlds:
   - world
+
+world-claim-rules:
+  admin-bypass: true
+  worlds:
+    world:
+      min-distance-from-origin-xz: 300
+      max-distance-from-origin-xz: 0
 ```
 
-为空时表示不限制世界。
+`allowed-worlds` 为空时表示不限制世界；不为空时，玩家只能在列表内的世界圈地。
+
+`world-claim-rules.worlds` 按世界名配置距离规则：
+
+- `min-distance-from-origin-xz`：领地整体必须距离 `X=0,Z=0` 至少多少格，`0` 表示不限制。
+- `max-distance-from-origin-xz`：领地最远处不能超过 `X=0,Z=0` 多少格，`0` 表示不限制。
+- `admin-bypass`：管理员使用管理创建、扩张、缩小时是否绕过距离限制；世界白名单仍会生效。
+
+距离规则按最终矩形领地范围计算，不扫描区块，性能开销可以忽略。
 
 ### 领地规则
 
@@ -525,25 +541,11 @@ visual:
 - 管理员强删
 - 管理员清理失效记录
 
-## Invero 集成
+## 菜单实现
 
-Invero 只作为入口和静态按钮菜单，不承载核心业务状态。
+当前插件使用内置 Bukkit GUI，不再自动生成 Invero 菜单入口。
 
-当前插件启动时会导出：
-
-```text
-MMM领地入口.yml
-```
-
-按钮会调用：
-
-```text
-/mmmland menu
-/mmmland select
-/mmmland cancel
-```
-
-核心业务仍由 Java 插件处理，包括：
+核心业务由 Java 插件处理，包括：
 
 - 粒子选区
 - 聊天确认
@@ -552,6 +554,46 @@ MMM领地入口.yml
 - 数据保存
 
 ## 更新记录
+
+### 0.15.1
+
+类型：Bug 修复与清理
+
+调整：
+
+- 移除旧的 Invero 菜单入口自动导出逻辑
+- 移除 `Invero` 软依赖和内置 `MMM领地入口.yml` 模板
+- 文档改为说明当前菜单由插件内置 Bukkit GUI 提供
+
+### 0.15.0
+
+类型：功能新增
+
+新增：
+
+- 支持按世界白名单限制玩家圈地世界
+- 支持按世界配置距离 `X=0,Z=0` 的最小圈地距离
+- 支持按世界配置距离 `X=0,Z=0` 的最大圈地距离
+- 管理员创建、扩张、缩小领地可通过配置选择是否绕过距离限制
+
+调整：
+
+- 创建、可视化选区、扩张、缩小、重选边界和管理员调整都会校验最终矩形范围
+- 配置文件增加中文注释和玩家提示文案
+
+### 0.14.1
+
+类型：Bug 修复
+
+新增：
+
+- 管理员命令 `/mmmland admin tp <玩家名> <领地名>`
+- 管理员传送不受公开传送限制
+- 管理员传送支持 Tab 补全玩家名和该玩家的托管领地名
+
+文档：
+
+- 插件帮助和 README 补充管理员传送说明
 
 ### 0.14.0
 
@@ -844,7 +886,7 @@ MMM领地入口.yml
 优先级较高：
 
 - 重命名流程菜单化
-- PlaceholderAPI 扩展，供 Invero 显示领地数量、上限、价格和选区状态
+- PlaceholderAPI 扩展，供其他菜单或计分板显示领地数量、上限、价格和选区状态
 - 历史底层领地（Residence）导入工具
 - 管理员分页查看和搜索领地
 - 将创建、选区、扩张、缩小、删除确认进一步统一到独立会话服务

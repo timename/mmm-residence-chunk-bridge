@@ -240,16 +240,17 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("check");
             suggestions.add("clean");
             suggestions.add("create");
+            suggestions.add("tp");
             suggestions.add("expand");
             suggestions.add("contract");
             suggestions.add("delete");
             return filter(suggestions, args[1]);
         }
-        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && ("create".equalsIgnoreCase(args[1]) || "expand".equalsIgnoreCase(args[1])
+        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && ("create".equalsIgnoreCase(args[1]) || "tp".equalsIgnoreCase(args[1]) || "expand".equalsIgnoreCase(args[1])
             || "contract".equalsIgnoreCase(args[1]) || "delete".equalsIgnoreCase(args[1]))) {
             return filter(org.bukkit.Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[2]);
         }
-        if (args.length == 4 && "admin".equalsIgnoreCase(args[0]) && ("expand".equalsIgnoreCase(args[1]) || "contract".equalsIgnoreCase(args[1])
+        if (args.length == 4 && "admin".equalsIgnoreCase(args[0]) && ("tp".equalsIgnoreCase(args[1]) || "expand".equalsIgnoreCase(args[1]) || "contract".equalsIgnoreCase(args[1])
             || "delete".equalsIgnoreCase(args[1]))) {
             return filter(landService.ownedClaimNames(args[2]), args[3]);
         }
@@ -341,6 +342,13 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
                     return;
                 }
                 landService.adminCreateClaim(player, args[2], adminCreateDisplayName(args));
+            }
+            case "tp" -> {
+                if (args.length < 4) {
+                    player.sendMessage(plugin.message("admin-teleport-usage"));
+                    return;
+                }
+                landService.adminTeleportToClaim(player, args[2], args[3]);
             }
             case "expand" -> {
                 if (args.length < 6) {

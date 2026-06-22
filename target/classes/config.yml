@@ -6,6 +6,22 @@
 allowed-worlds:
   - world
 
+# 每个世界的圈地距离规则。
+world-claim-rules:
+  # 管理员使用 /mmmland admin create/expand/contract 时是否绕过距离限制。
+  admin-bypass: true
+
+  # 按世界名配置距离限制。未配置的世界只受 allowed-worlds 控制。
+  worlds:
+    world:
+      # 领地必须整体距离 X=0,Z=0 至少多少格。
+      # 0 表示不限制最小距离。
+      min-distance-from-origin-xz: 300
+
+      # 领地最远处距离 X=0,Z=0 不能超过多少格。
+      # 0 表示不限制最大距离。
+      max-distance-from-origin-xz: 0
+
 # Vault 金币显示名。
 # 这里只影响本插件提示，不会修改经济插件本身的货币名。
 currency:

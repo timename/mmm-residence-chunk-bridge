@@ -11,7 +11,6 @@ import local.mmm.residencechunk.service.AuditLogService;
 import local.mmm.residencechunk.service.CustomCurrencyService;
 import local.mmm.residencechunk.service.EconomyService;
 import local.mmm.residencechunk.service.GuiService;
-import local.mmm.residencechunk.service.InveroMenuExporter;
 import local.mmm.residencechunk.service.LandDataStore;
 import local.mmm.residencechunk.service.LandService;
 import local.mmm.residencechunk.service.ResidenceHook;
@@ -79,7 +78,6 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(landService, this);
         Bukkit.getPluginManager().registerEvents(guiService, this);
         Bukkit.getPluginManager().registerEvents(selectionService, this);
-        InveroMenuExporter.exportIfAvailable(this);
         getLogger().info("MMMResidenceChunkBridge enabled.");
     }
 

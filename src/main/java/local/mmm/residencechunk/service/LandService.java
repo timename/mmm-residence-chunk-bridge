@@ -14,6 +14,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
 import local.mmm.residencechunk.config.PluginSettings;
+import local.mmm.residencechunk.config.PluginSettings.WorldClaimRule;
 import local.mmm.residencechunk.model.ChunkBounds;
 import local.mmm.residencechunk.model.ChunkBounds.Direction;
 import local.mmm.residencechunk.model.ManagedClaim;
@@ -95,6 +96,10 @@ public final class LandService implements Listener {
         }
         if (!isAllowedShape(bounds)) {
             return CreateCheckResult.denied(plugin.message("rectangle-only"));
+        }
+        String worldRuleMessage = checkWorldClaimRule(player.getWorld().getName(), bounds, false);
+        if (worldRuleMessage != null) {
+            return CreateCheckResult.denied(worldRuleMessage);
         }
 
         int currentClaims = getClaims(player.getUniqueId()).size();
@@ -222,6 +227,11 @@ public final class LandService implements Listener {
             player.sendMessage(plugin.message("rectangle-only"));
             return;
         }
+        String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, false);
+        if (worldRuleMessage != null) {
+            player.sendMessage(worldRuleMessage);
+            return;
+        }
 
         String availabilityMessage = checkCurrencyAvailability(cost);
         if (availabilityMessage != null) {
@@ -312,6 +322,11 @@ public final class LandService implements Listener {
         }
         if (newBounds.width() <= 0 || newBounds.depth() <= 0 || newBounds.area() < settings.minChunks()) {
             player.sendMessage(plugin.message("cannot-contract-below-min"));
+            return;
+        }
+        String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, false);
+        if (worldRuleMessage != null) {
+            player.sendMessage(worldRuleMessage);
             return;
         }
 
@@ -454,6 +469,20 @@ public final class LandService implements Listener {
             }
         }
         startTeleport(visitor, claim);
+    }
+
+    public void adminTeleportToClaim(Player admin, String ownerName, String claimName) {
+        ManagedClaim claim = requireTargetClaim(admin, ownerName, claimName);
+        if (claim == null) {
+            return;
+        }
+        startTeleport(admin, claim);
+        admin.sendMessage(render(plugin.message("admin-teleport-start"), Map.of(
+            "owner", claim.ownerName(),
+            "name", claim.displayName()
+        )));
+        auditLogService.log(admin, "ADMIN_TELEPORT", "claim=" + claim.residenceName()
+            + " display=" + claim.displayName() + " owner=" + claim.ownerName());
     }
 
     public void setPublicTeleport(Player player, String residenceName, boolean enabled) {
@@ -1096,6 +1125,76 @@ public final class LandService implements Listener {
         return settings.allowedWorlds().isEmpty() || settings.allowedWorlds().contains(worldName);
     }
 
+    private String checkWorldClaimRule(String worldName, ChunkBounds bounds, boolean adminAction) {
+        if (!isAllowedWorld(worldName)) {
+            return plugin.message("world-not-allowed");
+        }
+        if (adminAction && settings.worldClaimRulesAdminBypass()) {
+            return null;
+        }
+
+        WorldClaimRule rule = settings.worldClaimRules().get(worldName);
+        if (rule == null) {
+            return null;
+        }
+
+        if (rule.minDistanceFromOriginXz() > 0) {
+            long minDistanceSquared = minDistanceSquaredFromOrigin(bounds);
+            long requiredSquared = square(rule.minDistanceFromOriginXz());
+            if (minDistanceSquared < requiredSquared) {
+                return render(plugin.message("too-close-to-origin"), Map.of(
+                    "distance", Integer.toString(rule.minDistanceFromOriginXz()),
+                    "world", worldName
+                ));
+            }
+        }
+
+        if (rule.maxDistanceFromOriginXz() > 0) {
+            long maxDistanceSquared = maxDistanceSquaredFromOrigin(bounds);
+            long allowedSquared = square(rule.maxDistanceFromOriginXz());
+            if (maxDistanceSquared > allowedSquared) {
+                return render(plugin.message("too-far-from-origin"), Map.of(
+                    "distance", Integer.toString(rule.maxDistanceFromOriginXz()),
+                    "world", worldName
+                ));
+            }
+        }
+
+        return null;
+    }
+
+    private long minDistanceSquaredFromOrigin(ChunkBounds bounds) {
+        long minBlockX = (long) bounds.minChunkX() << 4;
+        long maxBlockX = ((long) bounds.maxChunkX() << 4) + 15L;
+        long minBlockZ = (long) bounds.minChunkZ() << 4;
+        long maxBlockZ = ((long) bounds.maxChunkZ() << 4) + 15L;
+        long nearestX = nearestDistanceToZero(minBlockX, maxBlockX);
+        long nearestZ = nearestDistanceToZero(minBlockZ, maxBlockZ);
+        return (nearestX * nearestX) + (nearestZ * nearestZ);
+    }
+
+    private long maxDistanceSquaredFromOrigin(ChunkBounds bounds) {
+        long minBlockX = (long) bounds.minChunkX() << 4;
+        long maxBlockX = ((long) bounds.maxChunkX() << 4) + 15L;
+        long minBlockZ = (long) bounds.minChunkZ() << 4;
+        long maxBlockZ = ((long) bounds.maxChunkZ() << 4) + 15L;
+        long farthestX = Math.max(Math.abs(minBlockX), Math.abs(maxBlockX));
+        long farthestZ = Math.max(Math.abs(minBlockZ), Math.abs(maxBlockZ));
+        return (farthestX * farthestX) + (farthestZ * farthestZ);
+    }
+
+    private long nearestDistanceToZero(long min, long max) {
+        if (min <= 0L && max >= 0L) {
+            return 0L;
+        }
+        return Math.min(Math.abs(min), Math.abs(max));
+    }
+
+    private long square(int value) {
+        long longValue = value;
+        return longValue * longValue;
+    }
+
     private int getMaxClaims(Player player) {
         int limit = settings.defaultMaxClaims();
         for (Map.Entry<String, Integer> entry : settings.permissionMaxClaims().entrySet()) {
@@ -1143,6 +1242,10 @@ public final class LandService implements Listener {
                 "limit", Integer.toString(settings.maxChunksPerClaim())
             )));
         }
+        String worldRuleMessage = checkWorldClaimRule(admin.getWorld().getName(), bounds, true);
+        if (worldRuleMessage != null) {
+            return CreateCheckResult.denied(worldRuleMessage);
+        }
         if (isInsideProtectedCenter(bounds)) {
             return CreateCheckResult.denied(plugin.message("inside-protected-center"));
         }
@@ -1178,6 +1281,10 @@ public final class LandService implements Listener {
                 "chunks", Integer.toString(newBounds.area()),
                 "limit", Integer.toString(settings.maxChunksPerClaim())
             )));
+        }
+        String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, false);
+        if (worldRuleMessage != null) {
+            return ResizeCheckResult.denied(worldRuleMessage);
         }
         if (isInsideProtectedCenter(newBounds)) {
             return ResizeCheckResult.denied(plugin.message("inside-protected-center"));
@@ -1246,6 +1353,11 @@ public final class LandService implements Listener {
                 "chunks", Integer.toString(newBounds.area()),
                 "limit", Integer.toString(settings.maxChunksPerClaim())
             )));
+            return;
+        }
+        String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, true);
+        if (worldRuleMessage != null) {
+            actor.sendMessage(worldRuleMessage);
             return;
         }
 
