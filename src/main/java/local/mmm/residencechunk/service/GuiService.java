@@ -59,7 +59,7 @@ public final class GuiService implements Listener {
 
     public void openMainMenu(Player player) {
         Inventory inventory = Bukkit.createInventory(new MainMenuHolder(), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.main-title", "&8领地菜单")));
+            plugin.message("gui.main-title"));
         fillBackground(inventory);
         inventory.setItem(20, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
             "&7在你当前所在区块创建整列领地",
@@ -75,7 +75,8 @@ public final class GuiService implements Listener {
             "&7查看、预览、扩张、缩小和删除领地",
             "&7点击打开领地列表"));
         inventory.setItem(30, createItem(Material.GOLD_INGOT, "&6价格说明",
-            "&7扩张单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName(),
+            "&7扩建首块: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName(),
+            "&7每块递增: &e" + formatPrice(landService.getExpandPriceIncreasePerChunk()),
             "&7领地超过 &e" + plugin.settings().expandVaultMaxChunks()
                 + " 个区块 &7后使用: &e" + landService.getCustomExpandCurrencyDisplayName(),
             "&7多区块创建会按额外区块加价",
@@ -89,7 +90,7 @@ public final class GuiService implements Listener {
     public void openClaimsMenu(Player player) {
         List<ManagedClaim> claims = landService.getClaims(player.getUniqueId());
         Inventory inventory = Bukkit.createInventory(new ClaimsListHolder(), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.list-title", "&8我的领地")));
+            plugin.message("gui.list-title"));
         fillBackground(inventory);
         int index = 0;
         for (ManagedClaim claim : claims) {
@@ -112,33 +113,42 @@ public final class GuiService implements Listener {
 
     public void openClaimDetailMenu(Player player, ManagedClaim claim) {
         Inventory inventory = Bukkit.createInventory(new ClaimDetailHolder(claim.residenceName()), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.detail-title", "&8领地操作")));
+            plugin.message("gui.detail-title"));
         fillBackground(inventory);
         inventory.setItem(13, createItem(Material.BOOK, "&e" + claim.displayName(),
             "&7内部名: &f" + claim.residenceName(),
             "&7世界: &f" + claim.worldName(),
             "&7区块面积: &f" + claim.bounds().area()));
-        inventory.setItem(20, actionItem(Material.ENDER_EYE, "&b预览领地边界", "preview::" + claim.displayName()));
-        inventory.setItem(21, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
-        inventory.setItem(22, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
-            "&7信任玩家、取消信任",
-            "&7禁止进入、解除禁止"));
-        inventory.setItem(23, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
+
+        inventory.setItem(19, actionItem(Material.ENDER_PEARL, "&a传送到领地", "teleport::" + claim.displayName(),
+            "&7传送到该领地的 Residence 传送点"));
+        inventory.setItem(21, actionItem(Material.COMPASS, "&e设置传送点", "set_teleport::" + claim.displayName(),
+            "&7必须站在该领地范围内",
+            "&7会把当前位置设为领地传送点"));
+
+        inventory.setItem(28, actionItem(Material.ENDER_EYE, "&b预览边界", "preview::" + claim.displayName()));
+        inventory.setItem(29, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
             "&7使用圈地工具重新选择矩形边界",
             "&7新增区块会按扩建规则收费"));
-        inventory.setItem(24, actionItem(Material.NAME_TAG, "&b重命名提示",
+        inventory.setItem(30, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
+        inventory.setItem(32, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
+        inventory.setItem(33, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
+            "&7信任玩家、取消信任",
+            "&7禁止进入、解除禁止"));
+
+        inventory.setItem(39, actionItem(Material.NAME_TAG, "&b重命名提示",
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
-        inventory.setItem(30, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
-        inventory.setItem(32, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
+        inventory.setItem(41, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName(),
+            "&c此操作会删除托管记录和 Residence 领地"));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
         player.openInventory(inventory);
     }
 
     public void openMemberMenu(Player player, ManagedClaim claim) {
         Inventory inventory = Bukkit.createInventory(new MemberHolder(claim.residenceName()), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.member-title", "&8成员权限")));
+            plugin.message("gui.member-title"));
         fillBackground(inventory);
         inventory.setItem(13, createItem(Material.BOOK, "&d" + claim.displayName(),
             "&7选择操作后，在聊天栏输入玩家名",
@@ -157,7 +167,7 @@ public final class GuiService implements Listener {
 
     public void openDirectionMenu(Player player, ManagedClaim claim, Mode mode) {
         Inventory inventory = Bukkit.createInventory(new DirectionHolder(claim.residenceName(), mode), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.direction-title", "&8选择方向")));
+            plugin.message("gui.direction-title"));
         fillBackground(inventory);
         inventory.setItem(13, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张方向" : "&6选择缩小方向",
             "&7当前领地: &f" + claim.displayName()));
@@ -171,7 +181,7 @@ public final class GuiService implements Listener {
 
     public void openAmountMenu(Player player, ManagedClaim claim, Mode mode, String direction) {
         Inventory inventory = Bukkit.createInventory(new AmountHolder(claim.residenceName(), mode, direction), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.amount-title", "&8选择区块数")));
+            plugin.message("gui.amount-title"));
         fillBackground(inventory);
         inventory.setItem(13, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张区块数" : "&6选择缩小区块数",
             "&7方向: &f" + direction,
@@ -194,7 +204,7 @@ public final class GuiService implements Listener {
 
     public void openDeleteConfirmMenu(Player player, ManagedClaim claim) {
         Inventory inventory = Bukkit.createInventory(new DeleteConfirmHolder(claim.residenceName()), 54,
-            plugin.color(plugin.getConfig().getString("messages.gui.delete-confirm-title", "&8确认删除")));
+            plugin.message("gui.delete-confirm-title"));
         fillBackground(inventory);
         inventory.setItem(21, actionItem(Material.RED_CONCRETE, "&4确认删除",
             "delete::" + claim.displayName(),
@@ -394,6 +404,14 @@ public final class GuiService implements Listener {
             }
             case "resize_select" -> {
                 player.performCommand("mmmland resize " + fallbackResidenceName);
+            }
+            case "teleport" -> {
+                player.closeInventory();
+                player.performCommand("mmmland tp " + fallbackResidenceName);
+            }
+            case "set_teleport" -> {
+                player.closeInventory();
+                player.performCommand("mmmland sethome " + fallbackResidenceName);
             }
             case "open_delete" -> {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);

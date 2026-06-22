@@ -1,9 +1,11 @@
 package local.mmm.residencechunk;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Objects;
 import java.util.logging.Level;
 import local.mmm.residencechunk.command.LandCommand;
+import local.mmm.residencechunk.config.ConfigComments;
 import local.mmm.residencechunk.config.PluginSettings;
 import local.mmm.residencechunk.service.AuditLogService;
 import local.mmm.residencechunk.service.CustomCurrencyService;
@@ -18,6 +20,8 @@ import local.mmm.residencechunk.service.VisualService;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -33,13 +37,15 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     private SelectionService selectionService;
     private VisualService visualService;
     private ResidenceHook residenceHook;
+    private FileConfiguration language;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveLanguageFile();
         reloadConfig();
-        getConfig().options().copyDefaults(true);
-        saveConfig();
+        applyConfigComments();
+        reloadLanguage();
         settings = PluginSettings.fromConfig(getConfig());
         dataStore = new LandDataStore(new File(getDataFolder(), "claims.yml"));
         dataStore.load();
@@ -69,6 +75,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         LandCommand landCommand = new LandCommand(this, landService, guiService, selectionService);
         command.setExecutor(landCommand);
         command.setTabCompleter(landCommand);
+        Bukkit.getPluginManager().registerEvents(landService, this);
         Bukkit.getPluginManager().registerEvents(guiService, this);
         Bukkit.getPluginManager().registerEvents(selectionService, this);
         InveroMenuExporter.exportIfAvailable(this);
@@ -100,8 +107,9 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
 
     public void reloadPluginConfig() {
         reloadConfig();
-        getConfig().options().copyDefaults(true);
-        saveConfig();
+        applyConfigComments();
+        saveLanguageFile();
+        reloadLanguage();
         settings = PluginSettings.fromConfig(getConfig());
         if (landService != null) {
             landService.reloadSettings(settings);
@@ -109,12 +117,44 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     }
 
     public String message(String path) {
-        String raw = getConfig().getString("messages." + path, path);
+        String raw = language == null ? null : language.getString(path);
+        if (raw == null) {
+            raw = getConfig().getString("messages." + path, path);
+        }
         return color(Objects.requireNonNullElse(raw, path));
+    }
+
+    public java.util.List<String> messageList(String path) {
+        java.util.List<String> raw = language == null ? java.util.List.of() : language.getStringList(path);
+        if (raw.isEmpty()) {
+            raw = getConfig().getStringList("messages." + path);
+        }
+        return raw.stream().map(this::color).toList();
     }
 
     public String color(String input) {
         return input.replace('&', '\u00A7');
+    }
+
+    private void saveLanguageFile() {
+        File languageFile = new File(getDataFolder(), "lang/zh_CN.yml");
+        if (!languageFile.exists()) {
+            saveResource("lang/zh_CN.yml", false);
+        }
+    }
+
+    private void reloadLanguage() {
+        language = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "lang/zh_CN.yml"));
+    }
+
+    private void applyConfigComments() {
+        ConfigComments.apply(getConfig());
+        try {
+            getConfig().save(new File(getDataFolder(), "config.yml"));
+        } catch (IOException exception) {
+            getLogger().log(Level.WARNING, "Failed to save commented config.yml", exception);
+        }
+        reloadConfig();
     }
 
     private Economy setupEconomy() {

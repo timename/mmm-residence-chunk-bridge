@@ -1,6 +1,6 @@
 name: MMMResidenceChunkBridge
 main: local.mmm.residencechunk.MMMResidenceChunkBridgePlugin
-version: 0.10.0
+version: 0.13.1
 api-version: '1.21'
 folia-supported: true
 author: Xiaomenxin

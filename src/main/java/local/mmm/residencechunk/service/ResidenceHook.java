@@ -13,6 +13,7 @@ public final class ResidenceHook {
     private final Method checkAreaCollisionMethod;
     private final Method addResidenceMethod;
     private final Method getByNameMethod;
+    private final Method getTeleportLocationMethod;
     private final Method setTpLocMethod;
     private final Method replaceAreaMethod;
     private final Method removeResidenceMethod;
@@ -29,6 +30,7 @@ public final class ResidenceHook {
             this.checkAreaCollisionMethod = managerClass.getMethod("checkAreaCollision", cuboidAreaClass, residenceClass, UUID.class);
             this.addResidenceMethod = managerClass.getMethod("addResidence", Player.class, String.class, UUID.class, String.class, Location.class, Location.class, boolean.class);
             this.getByNameMethod = managerClass.getMethod("getByName", String.class);
+            this.getTeleportLocationMethod = residenceClass.getMethod("getTeleportLocation", Player.class, boolean.class);
             this.setTpLocMethod = residenceClass.getMethod("setTpLoc", Player.class, boolean.class);
             this.replaceAreaMethod = residenceClass.getMethod("replaceArea", Player.class, cuboidAreaClass, String.class, boolean.class);
             this.removeResidenceMethod = managerClass.getMethod("removeResidence", Player.class, residenceClass, boolean.class);
@@ -82,6 +84,14 @@ public final class ResidenceHook {
             setTpLocMethod.invoke(residence, player, admin);
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Failed to set Residence teleport location", exception);
+        }
+    }
+
+    public Location getTeleportLocation(Object residence, Player player, boolean safe) {
+        try {
+            return (Location) getTeleportLocationMethod.invoke(residence, player, safe);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to get Residence teleport location", exception);
         }
     }
 

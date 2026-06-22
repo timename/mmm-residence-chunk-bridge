@@ -60,10 +60,11 @@ target/MMMResidenceChunkBridge-版本号.jar
 E:\MCserver\MMM\purpur1.21.10_Survival\plugins
 ```
 
-首次启动会生成或补全：
+首次启动会生成：
 
 ```text
 plugins/MMMResidenceChunkBridge/config.yml
+plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
 plugins/MMMResidenceChunkBridge/claims.yml
 plugins/MMMResidenceChunkBridge/operations.log
 ```
@@ -87,6 +88,8 @@ plugins/Invero/workspace/MMM领地入口.yml
 - 创建当前区块领地
 - 启动可视化选区圈地
 - 查看我的领地
+- 传送到领地
+- 设置领地传送点
 - 扩张领地
 - 缩小领地
 - 管理成员权限
@@ -149,6 +152,24 @@ plugins/Invero/workspace/MMM领地入口.yml
 ```
 
 只修改本插件显示名，不修改 Residence 内部领地名。
+
+### 领地传送
+
+```text
+/mmmland tp <领地名>
+```
+
+会传送到该领地的 Residence 传送点。只能传送到自己通过本插件托管的领地。
+
+默认普通玩家传送等待 `5` 秒，移动会取消传送。拥有配置权限的玩家可以缩短等待时间或立即传送。
+
+### 设置领地传送点
+
+```text
+/mmmland sethome <领地名>
+```
+
+必须站在该领地范围内执行。执行后会把当前位置设置为该领地的 Residence 传送点。
 
 ### 扩张领地
 
@@ -236,7 +257,7 @@ mmmland.admin
 /mmmland reload
 ```
 
-会重新读取 `config.yml`，并自动补齐新增默认配置项。
+会重新读取 `config.yml`，同时由插件代码补回配置中文注释。
 
 ### 查看托管领地
 
@@ -359,6 +380,12 @@ selection:
   require-tool: true
   timeout-seconds: 120
   preview-period-ticks: 10
+
+teleport:
+  default-delay-seconds: 5
+  permission-delays:
+    mmmland.teleport.fast: 2
+    mmmland.teleport.instant: 0
 ```
 
 ### 价格
@@ -374,13 +401,14 @@ pricing:
       3: 2000
       4: 4000
   expand:
-    price-per-chunk: 500
     vault-max-chunks: 25
+    progressive:
+      base-price: 500
+      price-increase-per-chunk: 200
     custom-currency:
       enabled: true
       id: "mengmeng_crystal"
       display-name: "萌萌水晶"
-      price-per-chunk: 1
   contract:
     refund-enabled: false
 ```
@@ -395,13 +423,44 @@ pricing:
 
 ```text
 扩张后总区块数 <= pricing.expand.vault-max-chunks：
-新增区块数 * pricing.expand.price-per-chunk，使用 Vault 金币
+使用 Vault 金币收费
 
 扩张后总区块数 > pricing.expand.vault-max-chunks：
-新增区块数 * pricing.expand.custom-currency.price-per-chunk，使用 MMMVaultSync 自管货币
+使用 MMMVaultSync 自管货币收费
+
+扩建第 1 个区块价格 = pricing.expand.progressive.base-price
+之后每个扩建区块价格比上一个增加 pricing.expand.progressive.price-increase-per-chunk
+
+默认从 1 区块扩到 4 区块：
+500 + 700 + 900 = 2100
 ```
 
 缩小默认不返还货币。
+
+### 语言文件
+
+```text
+plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
+```
+
+玩家提示、GUI 标题和帮助文本都在语言文件中维护。`config.yml` 只保留功能配置和价格配置。
+
+### 传送延迟
+
+```yaml
+teleport:
+  default-delay-seconds: 5
+  permission-delays:
+    mmmland.teleport.fast: 2
+    mmmland.teleport.instant: 0
+```
+
+规则：
+
+- 普通玩家使用 `default-delay-seconds`
+- 玩家拥有多个传送延迟权限时，取最短时间
+- 延迟为 `0` 时立即传送
+- 等待期间移动或退出会取消传送
 
 ### 可视化配置
 
@@ -477,6 +536,87 @@ MMM领地入口.yml
 - 数据保存
 
 ## 更新记录
+
+### 0.13.1
+
+类型：Bug 修复与界面调整
+
+修复：
+
+- 传送等待结束后不再执行 `/res tp`
+- 改为直接读取 Residence 传送点并由本插件执行传送，避免触发 Residence 自带二次等待
+
+调整：
+
+- 领地详情菜单重新排版
+- 第一行放传送和设置传送点
+- 第二行放预览、调整、扩张、缩小、成员权限
+- 第三行放重命名提示和删除
+
+### 0.13.0
+
+类型：功能新增
+
+新增：
+
+- 领地传送等待时间配置：
+  - `teleport.default-delay-seconds`
+  - `teleport.permission-delays`
+- 默认普通玩家传送等待 `5` 秒
+- 权限 `mmmland.teleport.fast` 默认等待 `2` 秒
+- 权限 `mmmland.teleport.instant` 默认立即传送
+
+规则：
+
+- 玩家拥有多个传送权限时，使用最短等待时间
+- 等待传送期间移动或退出会取消传送
+
+### 0.12.0
+
+类型：功能新增
+
+新增：
+
+- 玩家命令 `/mmmland tp <领地名>`，传送到自己的托管领地
+- 玩家命令 `/mmmland sethome <领地名>`，设置自己的领地传送点
+- 领地详情 GUI 增加“传送到领地”和“设置传送点”按钮
+
+规则：
+
+- 只能操作自己通过本插件托管的领地
+- 设置传送点时，玩家必须站在该领地范围内
+- 设置传送点使用 Residence 的传送点 API，传送动作走 Residence 自带传送命令
+
+### 0.11.1
+
+类型：Bug 修复
+
+修复：
+
+- 配置中文注释改为由插件代码维护
+- 启动和 `/mmmland reload` 会重新写回配置注释，避免配置被 Bukkit 保存后注释丢失
+- 保留当前配置值，只补回注释和文件头说明
+
+### 0.11.0
+
+类型：功能新增
+
+新增：
+
+- 语言文件独立为 `lang/zh_CN.yml`
+- `config.yml` 增加完整中文注释
+- `/mmmland reload` 会同时重载配置和语言文件
+- 扩建价格改为递增计价：
+  - 第一个扩建区块默认 `500`
+  - 每个后续扩建区块默认比上一个贵 `200`
+  - 配置项为 `pricing.expand.progressive.base-price`
+  - 配置项为 `pricing.expand.progressive.price-increase-per-chunk`
+
+调整：
+
+- 工具调整边界、命令扩建和 GUI 预计费用统一使用递增计价
+- 保留旧 `messages.*` 读取兜底，降低旧配置升级风险
+- 启动和 `/mmmland reload` 默认不依赖旧 `messages.*` 配置
 
 ### 0.10.0
 

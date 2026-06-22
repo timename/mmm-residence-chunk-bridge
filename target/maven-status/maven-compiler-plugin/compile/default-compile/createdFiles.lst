@@ -7,6 +7,8 @@ local\mmm\residencechunk\service\LandDataStore.class
 local\mmm\residencechunk\service\SelectionService$SelectionSession.class
 local\mmm\residencechunk\service\VisualService.class
 local\mmm\residencechunk\service\GuiService$ClaimDetailHolder.class
+local\mmm\residencechunk\service\LandService$PendingTeleport.class
+local\mmm\residencechunk\config\ConfigComments.class
 local\mmm\residencechunk\service\GuiService$PendingCreation.class
 local\mmm\residencechunk\MMMResidenceChunkBridgePlugin.class
 local\mmm\residencechunk\service\EconomyService.class

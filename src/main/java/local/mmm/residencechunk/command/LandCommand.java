@@ -110,6 +110,22 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
                 selectionService.startResizeSelection(player, args[1]);
                 return true;
             }
+            case "tp", "teleport" -> {
+                if (args.length < 2) {
+                    player.sendMessage(plugin.message("teleport-usage"));
+                    return true;
+                }
+                landService.teleportToClaim(player, args[1]);
+                return true;
+            }
+            case "sethome", "settp" -> {
+                if (args.length < 2) {
+                    player.sendMessage(plugin.message("set-teleport-usage"));
+                    return true;
+                }
+                landService.setClaimTeleport(player, args[1]);
+                return true;
+            }
             case "confirm" -> {
                 selectionService.confirmSelection(player);
                 return true;
@@ -186,6 +202,8 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("menu");
             suggestions.add("select");
             suggestions.add("resize");
+            suggestions.add("tp");
+            suggestions.add("sethome");
             suggestions.add("confirm");
             suggestions.add("cancel");
             suggestions.add("reload");
@@ -230,6 +248,8 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]) || "delete".equalsIgnoreCase(args[0])
             || "resize".equalsIgnoreCase(args[0])
+            || "tp".equalsIgnoreCase(args[0]) || "teleport".equalsIgnoreCase(args[0])
+            || "sethome".equalsIgnoreCase(args[0]) || "settp".equalsIgnoreCase(args[0])
             || "rename".equalsIgnoreCase(args[0]) || "trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
             || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
             return filter(landService.ownedClaimNames(player), args[1]);

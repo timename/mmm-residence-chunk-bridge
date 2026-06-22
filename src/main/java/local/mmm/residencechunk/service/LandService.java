@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
@@ -20,8 +21,13 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.scheduler.BukkitTask;
 
-public final class LandService {
+public final class LandService implements Listener {
 
     private static final String MAIN_AREA = "main";
 
@@ -32,6 +38,7 @@ public final class LandService {
     private final CustomCurrencyService customCurrencyService;
     private final ResidenceHook residenceHook;
     private final AuditLogService auditLogService;
+    private final Map<UUID, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
 
     public LandService(
         MMMResidenceChunkBridgePlugin plugin,
@@ -68,8 +75,8 @@ public final class LandService {
     }
 
     public void sendHelp(CommandSender sender) {
-        for (String line : plugin.getConfig().getStringList("messages.help")) {
-            sender.sendMessage(plugin.color(line));
+        for (String line : plugin.messageList("help")) {
+            sender.sendMessage(line);
         }
     }
 
@@ -407,6 +414,107 @@ public final class LandService {
         auditLogService.log(player, "DELETE", "claim=" + claim.residenceName() + " display=" + claim.displayName());
     }
 
+    public void teleportToClaim(Player player, String residenceName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+        int delaySeconds = teleportDelaySeconds(player);
+        if (delaySeconds <= 0) {
+            executeResidenceTeleport(player, claim);
+            return;
+        }
+        cancelPendingTeleport(player, null);
+        Location start = player.getLocation();
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            PendingTeleport removed = pendingTeleports.remove(player.getUniqueId());
+            if (removed == null || !player.isOnline()) {
+                return;
+            }
+            executeResidenceTeleport(player, claim);
+        }, delaySeconds * 20L);
+        pendingTeleports.put(player.getUniqueId(), new PendingTeleport(claim.displayName(), claim.residenceName(),
+            start.getWorld().getName(), start.getBlockX(), start.getBlockY(), start.getBlockZ(), task));
+        player.sendMessage(render(plugin.message("teleport-warmup"), Map.of(
+            "name", claim.displayName(),
+            "seconds", Integer.toString(delaySeconds)
+        )));
+    }
+
+    private void executeResidenceTeleport(Player player, ManagedClaim claim) {
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+        Location target = residenceHook.getTeleportLocation(residence, player, true);
+        if (target == null || target.getWorld() == null) {
+            player.sendMessage(render(plugin.message("teleport-failed"), Map.of("name", claim.displayName())));
+            return;
+        }
+        player.teleport(target);
+        player.sendMessage(render(plugin.message("teleport-start"), Map.of("name", claim.displayName())));
+        auditLogService.log(player, "TELEPORT", "claim=" + claim.residenceName() + " display=" + claim.displayName());
+    }
+
+    public void setClaimTeleport(Player player, String residenceName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        if (!isPlayerInsideClaim(player, claim)) {
+            player.sendMessage(render(plugin.message("set-teleport-not-inside"), Map.of("name", claim.displayName())));
+            return;
+        }
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+        residenceHook.setTeleportLocation(residence, player, true);
+        player.sendMessage(render(plugin.message("set-teleport-success"), Map.of("name", claim.displayName())));
+        Location location = player.getLocation();
+        auditLogService.log(player, "SET_TELEPORT", "claim=" + claim.residenceName() + " display=" + claim.displayName()
+            + " world=" + player.getWorld().getName() + " x=" + location.getBlockX() + " y=" + location.getBlockY() + " z=" + location.getBlockZ());
+    }
+
+    public void cancelPendingTeleport(Player player, String messagePath) {
+        PendingTeleport removed = pendingTeleports.remove(player.getUniqueId());
+        if (removed == null) {
+            return;
+        }
+        removed.task().cancel();
+        if (messagePath != null) {
+            player.sendMessage(render(plugin.message(messagePath), Map.of("name", removed.displayName())));
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        PendingTeleport pending = pendingTeleports.get(event.getPlayer().getUniqueId());
+        if (pending == null || event.getTo() == null) {
+            return;
+        }
+        Location to = event.getTo();
+        if (pending.worldName().equals(to.getWorld().getName())
+            && pending.blockX() == to.getBlockX()
+            && pending.blockY() == to.getBlockY()
+            && pending.blockZ() == to.getBlockZ()) {
+            return;
+        }
+        cancelPendingTeleport(event.getPlayer(), "teleport-cancelled-move");
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        cancelPendingTeleport(event.getPlayer(), null);
+    }
+
     public void adminListClaims(Player player) {
         List<ManagedClaim> claims = getAllClaims();
         if (claims.isEmpty()) {
@@ -716,7 +824,11 @@ public final class LandService {
     }
 
     public double getExpandPricePerChunk() {
-        return settings.expandPricePerChunk();
+        return settings.expandBasePrice();
+    }
+
+    public double getExpandPriceIncreasePerChunk() {
+        return settings.expandPriceIncreasePerChunk();
     }
 
     public String getCustomExpandCurrencyDisplayName() {
@@ -743,7 +855,7 @@ public final class LandService {
         ChunkBounds newBounds = claim.bounds().expand(direction, amount);
         int deltaChunks = Math.max(0, newBounds.area() - claim.bounds().area());
         boolean customCurrency = requiresCustomCurrency(newBounds);
-        double price = deltaChunks * (customCurrency ? settings.expandCustomPricePerChunk() : settings.expandPricePerChunk());
+        double price = calculateExpansionPrice(claim.bounds().area(), deltaChunks);
         String currency = customCurrency
             ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
             : economyService.currencyDisplayName();
@@ -935,7 +1047,7 @@ public final class LandService {
         boolean customCurrency = false;
         if (deltaChunks > 0) {
             customCurrency = requiresCustomCurrency(newBounds);
-            price = deltaChunks * (customCurrency ? settings.expandCustomPricePerChunk() : settings.expandPricePerChunk());
+            price = calculateExpansionPrice(claim.bounds().area(), deltaChunks);
             currency = customCurrency
                 ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
                 : economyService.currencyDisplayName();
@@ -1076,6 +1188,18 @@ public final class LandService {
         return null;
     }
 
+    private double calculateExpansionPrice(int currentArea, int deltaChunks) {
+        if (deltaChunks <= 0) {
+            return 0D;
+        }
+        int paidChunksBefore = Math.max(0, currentArea - settings.minChunks());
+        double total = 0D;
+        for (int i = 0; i < deltaChunks; i++) {
+            total += settings.expandBasePrice() + ((paidChunksBefore + i) * settings.expandPriceIncreasePerChunk());
+        }
+        return total;
+    }
+
     private boolean hasFunds(Player player, ExpandCost cost) {
         if (cost.customCurrency()) {
             return customCurrencyService.has(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price());
@@ -1194,6 +1318,28 @@ public final class LandService {
         return (dx * dx) + (dz * dz) <= (double) radius * radius;
     }
 
+    private boolean isPlayerInsideClaim(Player player, ManagedClaim claim) {
+        if (!player.getWorld().getName().equals(claim.worldName())) {
+            return false;
+        }
+        int chunkX = player.getChunk().getX();
+        int chunkZ = player.getChunk().getZ();
+        return chunkX >= claim.bounds().minChunkX()
+            && chunkX <= claim.bounds().maxChunkX()
+            && chunkZ >= claim.bounds().minChunkZ()
+            && chunkZ <= claim.bounds().maxChunkZ();
+    }
+
+    private int teleportDelaySeconds(Player player) {
+        int delay = settings.teleportDefaultDelaySeconds();
+        for (Map.Entry<String, Integer> entry : settings.teleportPermissionDelays().entrySet()) {
+            if (player.hasPermission(entry.getKey())) {
+                delay = Math.min(delay, entry.getValue());
+            }
+        }
+        return delay;
+    }
+
     private double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -1293,5 +1439,16 @@ public final class LandService {
         public String currencyDisplayName() {
             return cost == null ? "" : cost.currencyDisplayName();
         }
+    }
+
+    private record PendingTeleport(
+        String displayName,
+        String residenceName,
+        String worldName,
+        int blockX,
+        int blockY,
+        int blockZ,
+        BukkitTask task
+    ) {
     }
 }
