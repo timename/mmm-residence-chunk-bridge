@@ -78,8 +78,8 @@ public record PluginSettings(
         int legacyVaultMaxDepth = Math.max(1, config.getInt("pricing.expand.vault-max-depth", 5));
         int expandVaultMaxChunks = Math.max(1, config.getInt("pricing.expand.vault-max-chunks", legacyVaultMaxWidth * legacyVaultMaxDepth));
         boolean expandCustomCurrencyEnabled = config.getBoolean("pricing.expand.custom-currency.enabled", true);
-        String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "yupay");
-        String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "自定义货币");
+        String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "mengmeng_crystal");
+        String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "萌萌水晶");
         double expandCustomPricePerChunk = Math.max(0D, config.getDouble("pricing.expand.custom-currency.price-per-chunk", 1D));
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
         String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");

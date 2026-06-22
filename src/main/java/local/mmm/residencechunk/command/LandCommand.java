@@ -61,6 +61,38 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
                 landService.renameClaim(player, oldName, newName);
                 return true;
             }
+            case "trust" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("trust-usage"));
+                    return true;
+                }
+                landService.trustPlayer(player, args[1], args[2]);
+                return true;
+            }
+            case "untrust" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("untrust-usage"));
+                    return true;
+                }
+                landService.untrustPlayer(player, args[1], args[2]);
+                return true;
+            }
+            case "deny" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("deny-usage"));
+                    return true;
+                }
+                landService.denyPlayer(player, args[1], args[2]);
+                return true;
+            }
+            case "undeny" -> {
+                if (args.length < 3) {
+                    player.sendMessage(plugin.message("undeny-usage"));
+                    return true;
+                }
+                landService.undenyPlayer(player, args[1], args[2]);
+                return true;
+            }
             case "menu" -> {
                 guiService.openMainMenu(player);
                 return true;
@@ -139,6 +171,10 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             suggestions.add("expand");
             suggestions.add("contract");
             suggestions.add("delete");
+            suggestions.add("trust");
+            suggestions.add("untrust");
+            suggestions.add("deny");
+            suggestions.add("undeny");
             suggestions.add("menu");
             suggestions.add("select");
             suggestions.add("confirm");
@@ -183,8 +219,14 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && "forcedelete".equalsIgnoreCase(args[1])) {
             return filter(landService.getAllClaims().stream().map(claim -> claim.residenceName()).toList(), args[2]);
         }
-        if (args.length == 2 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]) || "delete".equalsIgnoreCase(args[0]) || "rename".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]) || "delete".equalsIgnoreCase(args[0])
+            || "rename".equalsIgnoreCase(args[0]) || "trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
+            || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
             return filter(landService.ownedClaimNames(player), args[1]);
+        }
+        if (args.length == 3 && ("trust".equalsIgnoreCase(args[0]) || "untrust".equalsIgnoreCase(args[0])
+            || "deny".equalsIgnoreCase(args[0]) || "undeny".equalsIgnoreCase(args[0]))) {
+            return filter(org.bukkit.Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[2]);
         }
         if (args.length == 3 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]))) {
             suggestions.add("北");

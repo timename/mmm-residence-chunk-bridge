@@ -89,6 +89,7 @@ plugins/Invero/workspace/MMM领地入口.yml
 - 查看我的领地
 - 扩张领地
 - 缩小领地
+- 管理成员权限
 - 删除领地
 
 ### 创建当前区块领地
@@ -163,7 +164,7 @@ GUI 中扩张会先显示预览，再输入 `确认` 执行。
 
 - 扩张后领地总区块数不超过 `25` 时，使用 Vault 金币
 - 扩张后总区块数超过 `25` 时，使用 MMMVaultSync 自管货币
-- 默认自管货币 ID 为 `gems`，显示为宝石
+- 默认自管货币 ID 为 `mengmeng_crystal`，显示为萌萌水晶
 - 上限、货币 ID、显示名、单价都可以在 `config.yml` 调整
 
 ### 缩小领地
@@ -181,6 +182,24 @@ GUI 中缩小会先显示预览，再输入 `确认` 执行。
 ```text
 /mmmland delete <领地名>
 ```
+
+### 成员权限
+
+```text
+/mmmland trust <领地名> <玩家名>
+/mmmland untrust <领地名> <玩家名>
+/mmmland deny <领地名> <玩家名>
+/mmmland undeny <领地名> <玩家名>
+```
+
+效果：
+
+- `trust`：信任玩家，授予 Residence 的 `trusted` 权限模板
+- `untrust`：移除该玩家的 `trusted` 权限模板
+- `deny`：禁止玩家进入，设置 `move=false` 和 `tp=false`
+- `undeny`：解除禁止进入，移除该玩家的 `move` 和 `tp` 单独限制
+
+GUI 中进入“我的领地” -> 选择领地 -> “成员权限”，选择操作后在聊天栏输入玩家名。
 
 ## 管理员功能
 
@@ -338,8 +357,8 @@ pricing:
     vault-max-chunks: 25
     custom-currency:
       enabled: true
-      id: "gems"
-      display-name: "宝石"
+      id: "mengmeng_crystal"
+      display-name: "萌萌水晶"
       price-per-chunk: 1
   contract:
     refund-enabled: false
@@ -437,6 +456,36 @@ MMM领地入口.yml
 - 数据保存
 
 ## 更新记录
+
+### 0.9.0
+
+类型：功能新增
+
+新增：
+
+- 玩家命令：
+  - `/mmmland trust <领地名> <玩家名>`
+  - `/mmmland untrust <领地名> <玩家名>`
+  - `/mmmland deny <领地名> <玩家名>`
+  - `/mmmland undeny <领地名> <玩家名>`
+- 领地详情 GUI 增加“成员权限”入口
+- 成员权限 GUI 支持信任、取消信任、禁止进入、解除禁止
+- 成员权限操作写入 `operations.log`
+
+实现：
+
+- 信任/取消信任通过 Residence 的 `trusted` 玩家权限模板实现
+- 禁止进入通过 Residence 的 `move` 和 `tp` 玩家权限实现
+
+### 0.8.0
+
+类型：功能调整
+
+调整：
+
+- 扩张领地超过金币区块上限后的自管货币改为 MMMVaultSync 的 `mengmeng_crystal`
+- 玩家显示名改为“萌萌水晶”
+- 默认配置和运行服配置同步更新
 
 ### 0.7.0
 

@@ -67,8 +67,8 @@ pricing:
     vault-max-chunks: 25
     custom-currency:
       enabled: true
-      id: "gems"
-      display-name: "宝石"
+      id: "mengmeng_crystal"
+      display-name: "萌萌水晶"
       price-per-chunk: 1
   contract:
     refund-enabled: false
@@ -89,6 +89,10 @@ messages:
   rename-usage: "&e用法: /mmmland rename <旧显示名> <新显示名>"
   expand-usage: "&e用法: /mmmland expand <领地名> <北|南|东|西> <区块数>"
   contract-usage: "&e用法: /mmmland contract <领地名> <北|南|东|西> <区块数>"
+  trust-usage: "&e用法: /mmmland trust <领地名> <玩家名>"
+  untrust-usage: "&e用法: /mmmland untrust <领地名> <玩家名>"
+  deny-usage: "&e用法: /mmmland deny <领地名> <玩家名>"
+  undeny-usage: "&e用法: /mmmland undeny <领地名> <玩家名>"
   menu-opened: "&a已打开领地菜单。"
   list-header: "&e你的领地:"
   list-entry: "&6- &f%name% &7(%world% %minChunkX%,%minChunkZ% -> %maxChunkX%,%maxChunkZ%)"
@@ -97,6 +101,14 @@ messages:
   expand-success: "&a领地扩张成功：&f%name%&a，新增 &f%delta% &a个区块，收费 &f%price% %currency%"
   contract-success: "&a领地缩小成功：&f%name%&a，减少 &f%delta% &a个区块，本操作不返还货币。"
   delete-success: "&a领地已删除：&f%name%"
+  invalid-player-name: "&c玩家名只能包含 3-16 位英文、数字或下划线。"
+  permission-change-failed: "&c权限修改失败，请联系管理员检查 Residence 权限配置。"
+  trust-success: "&a已在领地 &f%name% &a信任玩家 &f%player%&a。"
+  untrust-success: "&a已从领地 &f%name% &a移除玩家 &f%player% &a的信任权限。"
+  deny-success: "&a已禁止玩家 &f%player% &a进入领地 &f%name%&a。"
+  undeny-success: "&a已解除玩家 &f%player% &a在领地 &f%name% &a的进入限制。"
+  member-input-player: "&b正在为领地 &f%name% &b执行“%action%”，请在聊天栏输入玩家名，或输入“取消”。"
+  member-action-cancelled: "&e已取消成员权限操作。"
   insufficient-funds: "&c余额不足，需要 &f%price% %currency%&c。"
   rectangle-only: "&c领地只能是完整矩形，不能创建或调整为不规则形状。"
   custom-currency-disabled: "&c超过金币扩建上限后需要使用自定义货币，但当前配置未启用。"
@@ -153,6 +165,7 @@ messages:
     direction-title: "&8选择方向"
     amount-title: "&8选择区块数"
     delete-confirm-title: "&8确认删除"
+    member-title: "&8成员权限"
   help:
     - "&e/mmmland create [显示名] &7在当前区块创建整列领地"
     - "&e/mmmland select [显示名] &7开始可视化矩形选区圈地"
@@ -161,6 +174,10 @@ messages:
     - "&e/mmmland reload &7重载配置"
     - "&e/mmmland admin <list|check|clean|create|expand|contract|delete> &7管理员工具"
     - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名"
+    - "&e/mmmland trust <领地名> <玩家名> &7信任玩家"
+    - "&e/mmmland untrust <领地名> <玩家名> &7取消信任"
+    - "&e/mmmland deny <领地名> <玩家名> &7禁止玩家进入"
+    - "&e/mmmland undeny <领地名> <玩家名> &7解除禁止进入"
     - "&e/mmmland list &7查看你的领地"
     - "&e/mmmland expand <领地名> <北|南|东|西> <区块数> &7按区块扩张"
     - "&e/mmmland contract <领地名> <北|南|东|西> <区块数> &7按区块缩小"

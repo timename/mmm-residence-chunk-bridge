@@ -15,6 +15,7 @@ import local.mmm.residencechunk.model.ChunkBounds;
 import local.mmm.residencechunk.model.ChunkBounds.Direction;
 import local.mmm.residencechunk.model.ManagedClaim;
 import org.bukkit.Location;
+import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
@@ -446,6 +447,74 @@ public final class LandService {
             "old", claim.displayName(),
             "new", updatedClaim.displayName()
         )));
+    }
+
+    public void trustPlayer(Player player, String residenceName, String targetName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null || !isValidPlayerName(player, targetName)) {
+            return;
+        }
+        if (!applyResidencePlayerFlag(claim, targetName, "trusted", "true")) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("trust-success"), Map.of(
+            "name", claim.displayName(),
+            "player", targetName
+        )));
+        auditLogService.log(player, "TRUST", "claim=" + claim.residenceName() + " display=" + claim.displayName() + " target=" + targetName);
+    }
+
+    public void untrustPlayer(Player player, String residenceName, String targetName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null || !isValidPlayerName(player, targetName)) {
+            return;
+        }
+        if (!applyResidencePlayerFlag(claim, targetName, "trusted", "remove")) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("untrust-success"), Map.of(
+            "name", claim.displayName(),
+            "player", targetName
+        )));
+        auditLogService.log(player, "UNTRUST", "claim=" + claim.residenceName() + " display=" + claim.displayName() + " target=" + targetName);
+    }
+
+    public void denyPlayer(Player player, String residenceName, String targetName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null || !isValidPlayerName(player, targetName)) {
+            return;
+        }
+        boolean move = applyResidencePlayerFlag(claim, targetName, "move", "false");
+        boolean tp = applyResidencePlayerFlag(claim, targetName, "tp", "false");
+        if (!move || !tp) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("deny-success"), Map.of(
+            "name", claim.displayName(),
+            "player", targetName
+        )));
+        auditLogService.log(player, "DENY", "claim=" + claim.residenceName() + " display=" + claim.displayName() + " target=" + targetName);
+    }
+
+    public void undenyPlayer(Player player, String residenceName, String targetName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null || !isValidPlayerName(player, targetName)) {
+            return;
+        }
+        boolean move = applyResidencePlayerFlag(claim, targetName, "move", "remove");
+        boolean tp = applyResidencePlayerFlag(claim, targetName, "tp", "remove");
+        if (!move || !tp) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("undeny-success"), Map.of(
+            "name", claim.displayName(),
+            "player", targetName
+        )));
+        auditLogService.log(player, "UNDENY", "claim=" + claim.residenceName() + " display=" + claim.displayName() + " target=" + targetName);
     }
 
     public void listClaims(Player player) {
@@ -904,6 +973,19 @@ public final class LandService {
             return customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price(), reason);
         }
         return economyService.withdraw(player.getUniqueId(), cost.price());
+    }
+
+    private boolean applyResidencePlayerFlag(ManagedClaim claim, String targetName, String flag, String state) {
+        String command = "resadmin pset " + claim.residenceName() + " " + targetName + " " + flag + " " + state;
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+    }
+
+    private boolean isValidPlayerName(Player sender, String playerName) {
+        if (playerName == null || !playerName.matches("[A-Za-z0-9_]{3,16}")) {
+            sender.sendMessage(plugin.message("invalid-player-name"));
+            return false;
+        }
+        return true;
     }
 
     private String generateInternalName(Player player) {

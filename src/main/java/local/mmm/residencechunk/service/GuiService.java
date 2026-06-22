@@ -47,6 +47,7 @@ public final class GuiService implements Listener {
     private final NamespacedKey actionKey;
     private final Map<UUID, PendingCreation> pendingCreations = new ConcurrentHashMap<>();
     private final Map<UUID, PendingTransform> pendingTransforms = new ConcurrentHashMap<>();
+    private final Map<UUID, PendingMemberAction> pendingMemberActions = new ConcurrentHashMap<>();
 
     public GuiService(MMMResidenceChunkBridgePlugin plugin, LandService landService, VisualService visualService) {
         this.plugin = plugin;
@@ -119,13 +120,35 @@ public final class GuiService implements Listener {
             "&7区块面积: &f" + claim.bounds().area()));
         inventory.setItem(20, actionItem(Material.ENDER_EYE, "&b预览领地边界", "preview::" + claim.displayName()));
         inventory.setItem(21, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
-        inventory.setItem(22, actionItem(Material.NAME_TAG, "&b重命名提示",
+        inventory.setItem(22, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
+            "&7信任玩家、取消信任",
+            "&7禁止进入、解除禁止"));
+        inventory.setItem(23, actionItem(Material.NAME_TAG, "&b重命名提示",
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
-        inventory.setItem(23, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
-        inventory.setItem(24, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
+        inventory.setItem(24, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
+        inventory.setItem(31, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
+        player.openInventory(inventory);
+    }
+
+    public void openMemberMenu(Player player, ManagedClaim claim) {
+        Inventory inventory = Bukkit.createInventory(new MemberHolder(claim.residenceName()), 54,
+            plugin.color(plugin.getConfig().getString("messages.gui.member-title", "&8成员权限")));
+        fillBackground(inventory);
+        inventory.setItem(13, createItem(Material.BOOK, "&d" + claim.displayName(),
+            "&7选择操作后，在聊天栏输入玩家名",
+            "&7输入“取消”可退出"));
+        inventory.setItem(20, actionItem(Material.LIME_DYE, "&a信任玩家", "member:trust:" + claim.displayName(),
+            "&7授予建造、使用、开箱、移动、传送权限"));
+        inventory.setItem(22, actionItem(Material.GRAY_DYE, "&e取消信任", "member:untrust:" + claim.displayName(),
+            "&7移除信任权限模板"));
+        inventory.setItem(24, actionItem(Material.REDSTONE, "&c禁止进入", "member:deny:" + claim.displayName(),
+            "&7禁止该玩家移动进入和传送进入"));
+        inventory.setItem(31, actionItem(Material.GLOWSTONE_DUST, "&b解除禁止", "member:undeny:" + claim.displayName(),
+            "&7移除禁止进入相关限制"));
+        inventory.setItem(49, createItem(Material.BARRIER, "&c返回上一页"));
         player.openInventory(inventory);
     }
 
@@ -242,13 +265,24 @@ public final class GuiService implements Listener {
             }
             routeAction(player, event.getCurrentItem(), deleteHolder.residenceName());
         }
+        if (holder instanceof MemberHolder memberHolder) {
+            if (event.getRawSlot() == 49) {
+                ManagedClaim claim = landService.resolveOwnedClaim(player, memberHolder.residenceName());
+                if (claim != null) {
+                    openClaimDetailMenu(player, claim);
+                }
+                return;
+            }
+            routeAction(player, event.getCurrentItem(), memberHolder.residenceName());
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPendingChat(AsyncPlayerChatEvent event) {
         PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
         PendingTransform transform = pendingTransforms.get(event.getPlayer().getUniqueId());
-        if (pending == null && transform == null) {
+        PendingMemberAction memberAction = pendingMemberActions.get(event.getPlayer().getUniqueId());
+        if (pending == null && transform == null && memberAction == null) {
             return;
         }
 
@@ -257,8 +291,10 @@ public final class GuiService implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (pendingCreations.containsKey(event.getPlayer().getUniqueId())) {
                 handlePendingCreateChat(event.getPlayer(), message);
-            } else {
+            } else if (pendingTransforms.containsKey(event.getPlayer().getUniqueId())) {
                 handlePendingTransformChat(event.getPlayer(), message);
+            } else {
+                handlePendingMemberChat(event.getPlayer(), message);
             }
         });
     }
@@ -282,6 +318,7 @@ public final class GuiService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         cancelPendingCreation(event.getPlayer(), null);
         cancelPendingTransform(event.getPlayer(), null);
+        pendingMemberActions.remove(event.getPlayer().getUniqueId());
     }
 
     private void handleMainMenuClick(Player player, int rawSlot) {
@@ -345,6 +382,13 @@ public final class GuiService implements Listener {
                 }
                 openDirectionMenu(player, claim, "open_expand".equals(action) ? Mode.EXPAND : Mode.CONTRACT);
             }
+            case "open_members" -> {
+                ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
+                if (claim == null) {
+                    return;
+                }
+                openMemberMenu(player, claim);
+            }
             case "open_delete" -> {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
                 if (claim == null) {
@@ -382,6 +426,12 @@ public final class GuiService implements Listener {
                 String claimName = parts[2];
                 landService.deleteClaim(player, claimName);
                 Bukkit.getScheduler().runTask(plugin, () -> openClaimsMenu(player));
+            }
+            case "member" -> {
+                if (parts.length < 3) {
+                    return;
+                }
+                startMemberAction(player, parts[2], MemberAction.fromKey(parts[1]));
             }
             default -> {
             }
@@ -492,6 +542,46 @@ public final class GuiService implements Listener {
         }
     }
 
+    private void startMemberAction(Player player, String claimName, MemberAction action) {
+        if (action == null) {
+            return;
+        }
+        ManagedClaim claim = landService.resolveOwnedClaim(player, claimName);
+        if (claim == null) {
+            return;
+        }
+        cancelPendingCreation(player, null);
+        cancelPendingTransform(player, null);
+        pendingMemberActions.put(player.getUniqueId(), new PendingMemberAction(claim.displayName(), action));
+        player.closeInventory();
+        player.sendMessage(plugin.message("member-input-player")
+            .replace("%action%", action.displayName())
+            .replace("%name%", claim.displayName()));
+    }
+
+    private void handlePendingMemberChat(Player player, String message) {
+        PendingMemberAction pending = pendingMemberActions.get(player.getUniqueId());
+        if (pending == null) {
+            return;
+        }
+        if ("取消".equalsIgnoreCase(message) || "cancel".equalsIgnoreCase(message)) {
+            pendingMemberActions.remove(player.getUniqueId());
+            player.sendMessage(plugin.message("member-action-cancelled"));
+            return;
+        }
+        pendingMemberActions.remove(player.getUniqueId());
+        switch (pending.action()) {
+            case TRUST -> landService.trustPlayer(player, pending.claimName(), message);
+            case UNTRUST -> landService.untrustPlayer(player, pending.claimName(), message);
+            case DENY -> landService.denyPlayer(player, pending.claimName(), message);
+            case UNDENY -> landService.undenyPlayer(player, pending.claimName(), message);
+        }
+        ManagedClaim refreshed = landService.resolveOwnedClaim(player, pending.claimName());
+        if (refreshed != null) {
+            openMemberMenu(player, refreshed);
+        }
+    }
+
     private boolean isInsideBounds(Location location, String worldName, ChunkBounds bounds) {
         if (location == null || location.getWorld() == null || !location.getWorld().getName().equals(worldName)) {
             return false;
@@ -576,7 +666,7 @@ public final class GuiService implements Listener {
     }
 
     private sealed interface ManagedHolder extends InventoryHolder permits MainMenuHolder, ClaimsListHolder,
-        ClaimDetailHolder, DirectionHolder, AmountHolder, DeleteConfirmHolder {
+        ClaimDetailHolder, DirectionHolder, AmountHolder, DeleteConfirmHolder, MemberHolder {
         @Override
         default Inventory getInventory() {
             return null;
@@ -601,14 +691,47 @@ public final class GuiService implements Listener {
     private record DeleteConfirmHolder(String residenceName) implements ManagedHolder {
     }
 
+    private record MemberHolder(String residenceName) implements ManagedHolder {
+    }
+
     private record PendingCreation(UUID playerUuid, String displayName, String worldName, ChunkBounds bounds, double price) {
     }
 
     private record PendingTransform(String claimName, Mode mode, String direction, String amount) {
     }
 
+    private record PendingMemberAction(String claimName, MemberAction action) {
+    }
+
     public enum Mode {
         EXPAND,
         CONTRACT
+    }
+
+    private enum MemberAction {
+        TRUST("信任玩家"),
+        UNTRUST("取消信任"),
+        DENY("禁止进入"),
+        UNDENY("解除禁止");
+
+        private final String displayName;
+
+        MemberAction(String displayName) {
+            this.displayName = displayName;
+        }
+
+        private String displayName() {
+            return displayName;
+        }
+
+        private static MemberAction fromKey(String key) {
+            return switch (key.toLowerCase(Locale.ROOT)) {
+                case "trust" -> TRUST;
+                case "untrust" -> UNTRUST;
+                case "deny" -> DENY;
+                case "undeny" -> UNDENY;
+                default -> null;
+            };
+        }
     }
 }
