@@ -177,6 +177,7 @@ public final class SelectionService implements Listener {
         }
         ChunkBounds bounds = session.bounds();
         if (bounds == null) {
+            drawCurrentChunk(player);
             return;
         }
         if (!player.getWorld().getName().equals(session.worldName())) {
@@ -189,7 +190,15 @@ public final class SelectionService implements Listener {
             check = refreshSessionCheck(player, session);
         }
         Color color = check.allowed() ? Color.LIME : Color.RED;
+        drawCurrentChunk(player);
         visualService.drawBounds(player, bounds, player.getWorld(), color);
+    }
+
+    private void drawCurrentChunk(Player player) {
+        if (!plugin.getConfig().getBoolean("visual.current-chunk-enabled", true)) {
+            return;
+        }
+        visualService.drawBounds(player, ChunkBounds.single(player.getChunk()), player.getWorld(), Color.YELLOW);
     }
 
     private void sendSelectionSummary(Player player, SelectionSession session) {

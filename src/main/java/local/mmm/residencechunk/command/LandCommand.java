@@ -162,10 +162,10 @@ public final class LandCommand implements CommandExecutor, TabCompleter {
             return filter(landService.ownedClaimNames(player), args[1]);
         }
         if (args.length == 3 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]))) {
-            suggestions.add("north");
-            suggestions.add("south");
-            suggestions.add("east");
-            suggestions.add("west");
+            suggestions.add("北");
+            suggestions.add("南");
+            suggestions.add("东");
+            suggestions.add("西");
             return filter(suggestions, args[2]);
         }
         if (args.length == 4 && ("expand".equalsIgnoreCase(args[0]) || "contract".equalsIgnoreCase(args[0]))) {

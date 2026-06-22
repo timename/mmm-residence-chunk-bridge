@@ -47,10 +47,10 @@ public record ChunkBounds(int minChunkX, int maxChunkX, int minChunkZ, int maxCh
 
         public static Direction parse(String input) {
             return switch (input.toLowerCase(Locale.ROOT)) {
-                case "north", "n" -> NORTH;
-                case "south", "s" -> SOUTH;
-                case "east", "e" -> EAST;
-                case "west", "w" -> WEST;
+                case "north", "n", "北", "向北" -> NORTH;
+                case "south", "s", "南", "向南" -> SOUTH;
+                case "east", "e", "东", "向东" -> EAST;
+                case "west", "w", "西", "向西" -> WEST;
                 default -> null;
             };
         }

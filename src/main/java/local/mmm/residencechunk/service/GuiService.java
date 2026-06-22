@@ -33,6 +33,12 @@ import org.bukkit.persistence.PersistentDataType;
 public final class GuiService implements Listener {
 
     private static final int[] AMOUNTS = {1, 2, 4, 8};
+    private static final int[] CONTENT_SLOTS = {
+        10, 11, 12, 13, 14, 15, 16,
+        19, 20, 21, 22, 23, 24, 25,
+        28, 29, 30, 31, 32, 33, 34,
+        37, 38, 39, 40, 41, 42, 43
+    };
 
     private final MMMResidenceChunkBridgePlugin plugin;
     private final LandService landService;
@@ -51,24 +57,29 @@ public final class GuiService implements Listener {
     }
 
     public void openMainMenu(Player player) {
-        Inventory inventory = Bukkit.createInventory(new MainMenuHolder(), 27,
+        Inventory inventory = Bukkit.createInventory(new MainMenuHolder(), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.main-title", "&8领地菜单")));
         fillBackground(inventory);
-        inventory.setItem(10, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
+        inventory.setItem(20, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
             "&7在你当前所在区块创建整列领地",
             "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
-            "&b点击后关闭菜单，显示粒子范围",
+            "&b点击后关闭菜单并显示高亮边界",
             "&b随后在聊天栏输入“确认”完成创建"));
-        inventory.setItem(12, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
+        inventory.setItem(22, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
+            "&7手持配置工具后选择区块",
             "&7左键方块选择起点区块",
             "&7右键方块选择终点区块",
-            "&b选好后输入 确认 或执行 /mmmland confirm"));
-        inventory.setItem(13, createItem(Material.MAP, "&b我的领地",
-            "&7查看你的领地列表",
-            "&7点击打开"));
-        inventory.setItem(15, createItem(Material.GOLD_INGOT, "&6价格说明",
+            "&b选好后输入“确认”完成创建"));
+        inventory.setItem(24, createItem(Material.MAP, "&b我的领地",
+            "&7查看、预览、扩张、缩小和删除领地",
+            "&7点击打开领地列表"));
+        inventory.setItem(30, createItem(Material.GOLD_INGOT, "&6价格说明",
             "&7扩张单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName(),
+            "&7多区块创建会按额外区块加价",
             "&7缩小不会返还货币"));
+        inventory.setItem(32, createItem(Material.REDSTONE, "&e取消当前选区",
+            "&7退出正在进行的可视化圈地"));
+        inventory.setItem(49, createItem(Material.BARRIER, "&c关闭菜单"));
         player.openInventory(inventory);
     }
 
@@ -77,9 +88,9 @@ public final class GuiService implements Listener {
         Inventory inventory = Bukkit.createInventory(new ClaimsListHolder(), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.list-title", "&8我的领地")));
         fillBackground(inventory);
-        int slot = 0;
+        int index = 0;
         for (ManagedClaim claim : claims) {
-            if (slot >= 45) {
+            if (index >= CONTENT_SLOTS.length) {
                 break;
             }
             ItemStack item = createItem(Material.OAK_SIGN, "&e" + claim.displayName(),
@@ -87,53 +98,54 @@ public final class GuiService implements Listener {
                 "&7世界: &f" + claim.worldName(),
                 "&7区块: &f" + claim.bounds().minChunkX() + "," + claim.bounds().minChunkZ()
                     + " -> " + claim.bounds().maxChunkX() + "," + claim.bounds().maxChunkZ(),
+                "&7面积: &f" + claim.bounds().area() + " 个区块",
                 "&7点击进入操作菜单");
             item.editMeta(meta -> meta.getPersistentDataContainer().set(claimKey, PersistentDataType.STRING, claim.residenceName()));
-            inventory.setItem(slot++, item);
+            inventory.setItem(CONTENT_SLOTS[index++], item);
         }
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回主菜单"));
         player.openInventory(inventory);
     }
 
     public void openClaimDetailMenu(Player player, ManagedClaim claim) {
-        Inventory inventory = Bukkit.createInventory(new ClaimDetailHolder(claim.residenceName()), 27,
+        Inventory inventory = Bukkit.createInventory(new ClaimDetailHolder(claim.residenceName()), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.detail-title", "&8领地操作")));
         fillBackground(inventory);
-        inventory.setItem(4, createItem(Material.BOOK, "&e" + claim.displayName(),
+        inventory.setItem(13, createItem(Material.BOOK, "&e" + claim.displayName(),
             "&7内部名: &f" + claim.residenceName(),
             "&7世界: &f" + claim.worldName(),
             "&7区块面积: &f" + claim.bounds().area()));
-        inventory.setItem(8, actionItem(Material.ENDER_EYE, "&b预览领地边界", "preview::" + claim.displayName()));
-        inventory.setItem(10, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
-        inventory.setItem(12, actionItem(Material.NAME_TAG, "&b重命名提示",
+        inventory.setItem(20, actionItem(Material.ENDER_EYE, "&b预览领地边界", "preview::" + claim.displayName()));
+        inventory.setItem(21, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
+        inventory.setItem(22, actionItem(Material.NAME_TAG, "&b重命名提示",
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
-        inventory.setItem(14, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
-        inventory.setItem(16, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
-        inventory.setItem(18, createItem(Material.BARRIER, "&c返回列表"));
+        inventory.setItem(23, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
+        inventory.setItem(24, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName()));
+        inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
         player.openInventory(inventory);
     }
 
     public void openDirectionMenu(Player player, ManagedClaim claim, Mode mode) {
-        Inventory inventory = Bukkit.createInventory(new DirectionHolder(claim.residenceName(), mode), 27,
+        Inventory inventory = Bukkit.createInventory(new DirectionHolder(claim.residenceName(), mode), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.direction-title", "&8选择方向")));
         fillBackground(inventory);
-        inventory.setItem(4, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张方向" : "&6选择缩小方向",
+        inventory.setItem(13, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张方向" : "&6选择缩小方向",
             "&7当前领地: &f" + claim.displayName()));
-        inventory.setItem(10, actionItem(Material.ARROW, "&e北", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":north:" + claim.displayName()));
-        inventory.setItem(12, actionItem(Material.ARROW, "&e西", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":west:" + claim.displayName()));
-        inventory.setItem(14, actionItem(Material.ARROW, "&e东", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":east:" + claim.displayName()));
-        inventory.setItem(16, actionItem(Material.ARROW, "&e南", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":south:" + claim.displayName()));
-        inventory.setItem(22, createItem(Material.BARRIER, "&c返回上一页"));
+        inventory.setItem(20, actionItem(Material.ARROW, "&e向北", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":北:" + claim.displayName()));
+        inventory.setItem(22, actionItem(Material.ARROW, "&e向西", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":西:" + claim.displayName()));
+        inventory.setItem(24, actionItem(Material.ARROW, "&e向东", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":东:" + claim.displayName()));
+        inventory.setItem(31, actionItem(Material.ARROW, "&e向南", "pick:" + mode.name().toLowerCase(Locale.ROOT) + ":南:" + claim.displayName()));
+        inventory.setItem(49, createItem(Material.BARRIER, "&c返回上一页"));
         player.openInventory(inventory);
     }
 
     public void openAmountMenu(Player player, ManagedClaim claim, Mode mode, String direction) {
-        Inventory inventory = Bukkit.createInventory(new AmountHolder(claim.residenceName(), mode, direction), 27,
+        Inventory inventory = Bukkit.createInventory(new AmountHolder(claim.residenceName(), mode, direction), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.amount-title", "&8选择区块数")));
         fillBackground(inventory);
-        inventory.setItem(4, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张区块数" : "&6选择缩小区块数",
+        inventory.setItem(13, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张区块数" : "&6选择缩小区块数",
             "&7方向: &f" + direction,
             mode == Mode.EXPAND
                 ? "&7单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName()
@@ -144,22 +156,22 @@ public final class GuiService implements Listener {
             String lore = mode == Mode.EXPAND
                 ? "&7预计费用: &e" + formatPrice(amount * landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName()
                 : "&7本操作不会返还货币";
-            inventory.setItem(10 + (i * 2), actionItem(material, "&f" + amount + " 区块",
+            inventory.setItem(20 + (i * 2), actionItem(material, "&f" + amount + " 个区块",
                 "apply:" + mode.name().toLowerCase(Locale.ROOT) + ":" + direction + ":" + claim.displayName() + ":" + amount, lore));
         }
-        inventory.setItem(22, createItem(Material.BARRIER, "&c返回上一页"));
+        inventory.setItem(49, createItem(Material.BARRIER, "&c返回上一页"));
         player.openInventory(inventory);
     }
 
     public void openDeleteConfirmMenu(Player player, ManagedClaim claim) {
-        Inventory inventory = Bukkit.createInventory(new DeleteConfirmHolder(claim.residenceName()), 27,
+        Inventory inventory = Bukkit.createInventory(new DeleteConfirmHolder(claim.residenceName()), 54,
             plugin.color(plugin.getConfig().getString("messages.gui.delete-confirm-title", "&8确认删除")));
         fillBackground(inventory);
-        inventory.setItem(11, actionItem(Material.RED_CONCRETE, "&4确认删除",
+        inventory.setItem(21, actionItem(Material.RED_CONCRETE, "&4确认删除",
             "delete::" + claim.displayName(),
             "&7领地: &f" + claim.displayName(),
             "&c此操作不可恢复"));
-        inventory.setItem(15, createItem(Material.GREEN_CONCRETE, "&a取消并返回"));
+        inventory.setItem(23, createItem(Material.GREEN_CONCRETE, "&a取消并返回"));
         player.openInventory(inventory);
     }
 
@@ -187,7 +199,7 @@ public final class GuiService implements Listener {
             return;
         }
         if (holder instanceof ClaimDetailHolder detailHolder) {
-            if (event.getRawSlot() == 18) {
+            if (event.getRawSlot() == 49) {
                 openClaimsMenu(player);
                 return;
             }
@@ -195,7 +207,7 @@ public final class GuiService implements Listener {
             return;
         }
         if (holder instanceof DirectionHolder directionHolder) {
-            if (event.getRawSlot() == 22) {
+            if (event.getRawSlot() == 49) {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, directionHolder.residenceName());
                 if (claim != null) {
                     openClaimDetailMenu(player, claim);
@@ -206,7 +218,7 @@ public final class GuiService implements Listener {
             return;
         }
         if (holder instanceof AmountHolder amountHolder) {
-            if (event.getRawSlot() == 22) {
+            if (event.getRawSlot() == 49) {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, amountHolder.residenceName());
                 if (claim != null) {
                     openDirectionMenu(player, claim, amountHolder.mode());
@@ -221,7 +233,7 @@ public final class GuiService implements Listener {
             if (claim == null) {
                 return;
             }
-            if (event.getRawSlot() == 15) {
+            if (event.getRawSlot() == 23) {
                 openClaimDetailMenu(player, claim);
                 return;
             }
@@ -230,7 +242,7 @@ public final class GuiService implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPendingCreateChat(AsyncPlayerChatEvent event) {
+    public void onPendingChat(AsyncPlayerChatEvent event) {
         PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
         PendingTransform transform = pendingTransforms.get(event.getPlayer().getUniqueId());
         if (pending == null && transform == null) {
@@ -271,9 +283,11 @@ public final class GuiService implements Listener {
 
     private void handleMainMenuClick(Player player, int rawSlot) {
         switch (rawSlot) {
-            case 10 -> startCreateConfirmation(player);
-            case 12 -> player.performCommand("mmmland select");
-            case 13 -> openClaimsMenu(player);
+            case 20 -> startCreateConfirmation(player);
+            case 22 -> player.performCommand("mmmland select");
+            case 24 -> openClaimsMenu(player);
+            case 32 -> player.performCommand("mmmland cancel");
+            case 49 -> player.closeInventory();
             default -> {
             }
         }
@@ -512,25 +526,28 @@ public final class GuiService implements Listener {
     }
 
     private void fillBackground(Inventory inventory) {
-        ItemStack outer = createPane(Material.BLUE_STAINED_GLASS_PANE);
+        ItemStack border = createPane(Material.BLUE_STAINED_GLASS_PANE);
         ItemStack inner = createPane(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
-        ItemStack accent = createPane(Material.CYAN_STAINED_GLASS_PANE);
+        ItemStack accent = createPane(Material.MAGENTA_STAINED_GLASS_PANE);
 
         for (int slot = 0; slot < inventory.getSize(); slot++) {
-            inventory.setItem(slot, outer.clone());
+            inventory.setItem(slot, inner.clone());
         }
 
         int rows = inventory.getSize() / 9;
-        for (int row = 1; row < rows - 1; row++) {
-            for (int col = 1; col < 8; col++) {
-                inventory.setItem(row * 9 + col, inner.clone());
-            }
+        for (int col = 0; col < 9; col++) {
+            inventory.setItem(col, border.clone());
+            inventory.setItem((rows - 1) * 9 + col, border.clone());
+        }
+        for (int row = 0; row < rows; row++) {
+            inventory.setItem(row * 9, border.clone());
+            inventory.setItem(row * 9 + 8, border.clone());
         }
 
-        for (int col = 2; col <= 6; col++) {
-            inventory.setItem(1 * 9 + col, accent.clone());
-            inventory.setItem((rows - 2) * 9 + col, accent.clone());
-        }
+        inventory.setItem(0, accent.clone());
+        inventory.setItem(8, accent.clone());
+        inventory.setItem((rows - 1) * 9, accent.clone());
+        inventory.setItem((rows - 1) * 9 + 8, accent.clone());
     }
 
     private ItemStack createPane(Material material) {
@@ -543,7 +560,7 @@ public final class GuiService implements Listener {
     }
 
     private void previewBounds(Player player, ChunkBounds bounds, String worldName) {
-        int durationTicks = Math.max(20, plugin.getConfig().getInt("visual.preview-duration-ticks", 80));
+        int durationTicks = Math.max(20, plugin.getConfig().getInt("visual.preview-duration-ticks", 200));
         visualService.previewForDuration(player, bounds, worldName, Color.AQUA, durationTicks);
     }
 

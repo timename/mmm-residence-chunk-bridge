@@ -1,6 +1,6 @@
 name: MMMResidenceChunkBridge
 main: local.mmm.residencechunk.MMMResidenceChunkBridgePlugin
-version: 0.3.0
+version: 0.4.0
 api-version: '1.21'
 folia-supported: true
 author: Xiaomenxin
@@ -8,7 +8,7 @@ depend: [Residence, Vault]
 softdepend: [Invero]
 commands:
   mmmland:
-    description: Chunk-based Residence bridge commands
+    description: 区块化领地菜单与管理命令
     usage: /mmmland help
     aliases: [mland]
 permissions:

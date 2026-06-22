@@ -201,7 +201,7 @@ mmmland.admin
 /mmmland admin check
 ```
 
-检查 `claims.yml` 中记录的 Residence 领地是否仍然存在。
+检查 `claims.yml` 中记录的底层领地（Residence）是否仍然存在。
 
 ### 清理失效托管记录
 
@@ -217,7 +217,7 @@ mmmland.admin
 /mmmland admin delete <内部领地名>
 ```
 
-会删除 Residence 领地和本插件托管记录。
+会删除底层领地（Residence）和本插件托管记录。
 
 ## 权限
 
@@ -265,6 +265,14 @@ claims:
 ### 可视化选区
 
 ```yml
+visual:
+  preview-duration-ticks: 200
+  preview-period-ticks: 6
+  preview-step-blocks: 1
+  preview-corner-height: 8
+  preview-dust-size: 1.6
+  current-chunk-enabled: true
+
 selection:
   tool: GOLDEN_SHOVEL
   require-tool: true
@@ -358,6 +366,34 @@ MMM领地入口.yml
 
 ## 更新记录
 
+### 0.4.0
+
+类型：功能新增
+
+新增：
+
+- 插件自带 Bukkit 菜单改为 6 行大菜单
+- 菜单使用蓝色、淡蓝色、品红玻璃片边框，风格贴近服务器 Invero 菜单
+- 领地列表改为中间内容区显示，外围保留玻璃装饰
+- 粒子预览增强，默认持续时间提高到 10 秒
+- 粒子边框密度提高，默认每格显示
+- 预览四角增加更高的光柱效果
+- 粒子边框增加 `END_ROD` 高亮粒子，夜晚更明显
+- 可视化选区时持续显示玩家脚下当前区块
+- 增加粒子配置项：
+  - `visual.preview-period-ticks`
+  - `visual.preview-corner-height`
+  - `visual.preview-dust-size`
+  - `visual.current-chunk-enabled`
+
+调整：
+
+- 玩家可见方向参数优先使用中文：北、南、东、西
+- 保留 `north/south/east/west` 兼容
+- 插件命令描述改为中文
+- 玩家可见的底层领地提示尽量汉化
+- GUI 硬编码文案统一整理为中文
+
 ### 0.3.0
 
 类型：功能新增
@@ -404,6 +440,6 @@ MMM领地入口.yml
 
 - 重命名流程菜单化
 - PlaceholderAPI 扩展，供 Invero 显示领地数量、上限、价格和选区状态
-- 历史 Residence 领地导入工具
+- 历史底层领地（Residence）导入工具
 - 管理员分页查看和搜索领地
 - 将创建、选区、扩张、缩小、删除确认进一步统一到独立会话服务

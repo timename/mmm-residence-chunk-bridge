@@ -19,8 +19,12 @@ claims:
   set-teleport-on-create: true
 
 visual:
-  preview-duration-ticks: 80
-  preview-step-blocks: 2
+  preview-duration-ticks: 200
+  preview-period-ticks: 6
+  preview-step-blocks: 1
+  preview-corner-height: 8
+  preview-dust-size: 1.6
+  current-chunk-enabled: true
   preview-particle: END_ROD
 
 selection:
@@ -64,8 +68,8 @@ messages:
   inside-protected-center: "&c这个位置位于服务器中心保护范围内，不能创建领地。"
   create-usage: "&e用法: /mmmland create [显示名]"
   rename-usage: "&e用法: /mmmland rename <旧显示名> <新显示名>"
-  expand-usage: "&e用法: /mmmland expand <领地名> <north|south|east|west> <区块数>"
-  contract-usage: "&e用法: /mmmland contract <领地名> <north|south|east|west> <区块数>"
+  expand-usage: "&e用法: /mmmland expand <领地名> <北|南|东|西> <区块数>"
+  contract-usage: "&e用法: /mmmland contract <领地名> <北|南|东|西> <区块数>"
   menu-opened: "&a已打开领地菜单。"
   list-header: "&e你的领地:"
   list-entry: "&6- &f%name% &7(%world% %minChunkX%,%minChunkZ% -> %maxChunkX%,%maxChunkZ%)"
@@ -77,7 +81,7 @@ messages:
   insufficient-funds: "&c余额不足，需要 &f%price% %currency%&c。"
   collision: "&c目标范围与其他领地冲突: &f%target%"
   cannot-contract-below-min: "&c缩小后不能小于最小区块数。"
-  invalid-direction: "&c方向必须是 north、south、east 或 west。"
+  invalid-direction: "&c方向必须是 北、南、东 或 西。"
   invalid-amount: "&c区块数必须是大于 0 的整数。"
   too-many-claims: "&c你的领地数量已达到上限: &f%limit%"
   too-many-chunks: "&c当前选区过大，共 &f%chunks% &c个区块，单个领地最多 &f%limit% &c个区块。"
@@ -109,7 +113,7 @@ messages:
   admin-delete-usage: "&e用法: /mmmland admin delete <内部领地名>"
   admin-list-header: "&e当前托管领地共 &f%count% &e个:"
   admin-list-entry: "&6- &f%display% &7(%name%) &7所有者: &f%owner% &7世界: &f%world% &7区块: &f%chunks%"
-  admin-check-missing: "&c缺失 Residence 领地: &f%display% &7(%name%) &7所有者: &f%owner%"
+  admin-check-missing: "&c缺失底层领地记录: &f%display% &7(%name%) &7所有者: &f%owner%"
   admin-check-done: "&a自检完成，缺失 &f%missing%&a / &f%total% &a个托管领地。"
   admin-clean-done: "&a清理完成，已移除 &f%removed% &a条失效托管记录。"
   admin-delete-success: "&a已强制删除托管领地: &f%display% &7(%name%) &7所有者: &f%owner%"
@@ -129,6 +133,6 @@ messages:
     - "&e/mmmland admin <list|check|clean|delete> &7管理员工具"
     - "&e/mmmland rename <旧显示名> <新显示名> &7重命名显示名称"
     - "&e/mmmland list &7查看你的领地"
-    - "&e/mmmland expand <领地名> <方向> <区块数> &7按区块扩张"
-    - "&e/mmmland contract <领地名> <方向> <区块数> &7按区块缩小"
+    - "&e/mmmland expand <领地名> <北|南|东|西> <区块数> &7按区块扩张"
+    - "&e/mmmland contract <领地名> <北|南|东|西> <区块数> &7按区块缩小"
     - "&e/mmmland delete <领地名> &7删除领地"
