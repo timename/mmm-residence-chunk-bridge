@@ -1,8 +1,8 @@
-# MMMResidenceChunkBridge 说明文档
+# mmmResidenceChunkBridge 说明文档
 
 ## 1. 插件定位
 
-`MMMResidenceChunkBridge` 是一个依赖 `Residence 6.0.0.1` 的上层业务插件。
+`mmmResidenceChunkBridge` 是一个依赖 `Residence 6.0.0.1` 的上层业务插件。
 
 它的核心目标不是自己重写一套完整的领地保护系统，而是：
 
@@ -13,7 +13,7 @@
 可以把它理解为：
 
 - `Residence` 负责真正的领地创建、碰撞检测、保护规则、传送点等底层能力
-- `MMMResidenceChunkBridge` 负责把玩家的操作转译成符合本服规则的 `Residence` 调用
+- `mmmResidenceChunkBridge` 负责把玩家的操作转译成符合本服规则的 `Residence` 调用
 
 ## 2. 当前设计思路
 
@@ -32,7 +32,7 @@
   - 底层领地创建、删除、碰撞检测、区域替换、领地传送点
 - `Vault`
   - 经济接口，负责扣费
-- `MMMResidenceChunkBridge`
+- `mmmResidenceChunkBridge`
   - 负责价格规则、世界限制、区块限制、菜单流程、确认流程、元数据记录
 
 ## 3. 当前已实现的业务规则
@@ -460,7 +460,7 @@ mmmland.limit.8
 当前版本：
 
 ```text
-0.15.1
+0.15.2
 ```
 
 版本规则：
@@ -469,11 +469,11 @@ mmmland.limit.8
 - `y`：功能新增
 - `z`：Bug 修复
 
-当前 `0.15.1` 属于 Bug 修复与清理版本，主要调整了：
+当前 `0.15.2` 属于 Bug 修复与命名调整版本，主要调整了：
 
-- 移除旧的 Invero 菜单入口自动导出逻辑
-- 移除 Invero 软依赖和内置入口菜单模板
-- 保留插件内置 Bukkit GUI 作为当前菜单实现
+- 插件名从 `MMMResidenceChunkBridge` 改为 `mmmResidenceChunkBridge`
+- 构建 jar 名改为 `mmmResidenceChunkBridge-版本号.jar`
+- 启动时会尝试迁移旧数据目录
 - 保留 Residence、Vault、MMMVaultSync 的核心集成
 
 ## 11. 当前实现的优点

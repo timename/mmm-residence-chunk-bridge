@@ -40,6 +40,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        migrateLegacyDataFolder();
         saveDefaultConfig();
         saveLanguageFile();
         reloadConfig();
@@ -78,7 +79,26 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(landService, this);
         Bukkit.getPluginManager().registerEvents(guiService, this);
         Bukkit.getPluginManager().registerEvents(selectionService, this);
-        getLogger().info("MMMResidenceChunkBridge enabled.");
+        getLogger().info("mmmResidenceChunkBridge enabled.");
+    }
+
+    private void migrateLegacyDataFolder() {
+        File currentFolder = getDataFolder();
+        File parentFolder = currentFolder.getParentFile();
+        if (parentFolder == null) {
+            return;
+        }
+
+        File legacyFolder = new File(parentFolder, "MMMResidenceChunkBridge");
+        if (currentFolder.exists() || !legacyFolder.exists() || legacyFolder.equals(currentFolder)) {
+            return;
+        }
+
+        if (legacyFolder.renameTo(currentFolder)) {
+            getLogger().info("Migrated legacy data folder from MMMResidenceChunkBridge to mmmResidenceChunkBridge.");
+        } else {
+            getLogger().warning("Unable to migrate legacy data folder. Please rename plugins/MMMResidenceChunkBridge to plugins/mmmResidenceChunkBridge manually.");
+        }
     }
 
     @Override

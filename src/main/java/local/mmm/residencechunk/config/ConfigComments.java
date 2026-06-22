@@ -11,7 +11,7 @@ public final class ConfigComments {
     public static void apply(FileConfiguration config) {
         config.options().parseComments(true);
         config.options().header("""
-            MMMResidenceChunkBridge 功能配置
+            mmmResidenceChunkBridge 功能配置
             语言文案已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
             本文件的中文注释由插件代码维护，插件保存或重载配置时会自动补回。
             """);

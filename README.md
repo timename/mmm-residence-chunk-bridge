@@ -1,6 +1,6 @@
-# MMMResidenceChunkBridge
+# mmmResidenceChunkBridge
 
-`MMMResidenceChunkBridge` 是一个基于 `Residence` 的区块化领地桥接插件。
+`mmmResidenceChunkBridge` 是一个基于 `Residence` 的区块化领地桥接插件。
 
 它不替代 Residence 的保护系统，而是把 Residence 的领地能力包装成更适合服务器使用的玩家流程：
 
@@ -48,7 +48,7 @@ mvn package
 构建产物位于：
 
 ```text
-target/MMMResidenceChunkBridge-版本号.jar
+target/mmmResidenceChunkBridge-版本号.jar
 ```
 
 ## 部署
@@ -62,10 +62,10 @@ E:\MCserver\MMM\purpur1.21.10_Survival\plugins
 首次启动会生成：
 
 ```text
-plugins/MMMResidenceChunkBridge/config.yml
-plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
-plugins/MMMResidenceChunkBridge/claims.yml
-plugins/MMMResidenceChunkBridge/operations.log
+plugins/mmmResidenceChunkBridge/config.yml
+plugins/mmmResidenceChunkBridge/lang/zh_CN.yml
+plugins/mmmResidenceChunkBridge/claims.yml
+plugins/mmmResidenceChunkBridge/operations.log
 ```
 
 ## 玩家功能
@@ -472,7 +472,7 @@ pricing:
 ### 语言文件
 
 ```text
-plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
+plugins/mmmResidenceChunkBridge/lang/zh_CN.yml
 ```
 
 玩家提示、GUI 标题和帮助文本都在语言文件中维护。`config.yml` 只保留功能配置和价格配置。
@@ -554,6 +554,16 @@ visual:
 - 数据保存
 
 ## 更新记录
+
+### 0.15.2
+
+类型：Bug 修复与命名调整
+
+调整：
+
+- 插件名从 `MMMResidenceChunkBridge` 改为 `mmmResidenceChunkBridge`
+- 构建 jar 名改为 `mmmResidenceChunkBridge-版本号.jar`
+- 启动时会尝试把旧数据目录 `plugins/MMMResidenceChunkBridge` 迁移为 `plugins/mmmResidenceChunkBridge`
 
 ### 0.15.1
 
