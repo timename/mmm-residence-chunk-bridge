@@ -1,5 +1,6 @@
 local\mmm\residencechunk\service\SelectionService.class
 local\mmm\residencechunk\service\GuiService$AmountHolder.class
+local\mmm\residencechunk\service\LandService$ExpandCost.class
 local\mmm\residencechunk\service\ResidenceHook.class
 local\mmm\residencechunk\service\GuiService$DeleteConfirmHolder.class
 local\mmm\residencechunk\service\LandDataStore.class
@@ -24,4 +25,5 @@ local\mmm\residencechunk\service\LandService$CreateCheckResult.class
 local\mmm\residencechunk\model\ManagedClaim.class
 local\mmm\residencechunk\model\ChunkBounds.class
 local\mmm\residencechunk\service\GuiService$Mode.class
+local\mmm\residencechunk\service\CustomCurrencyService.class
 local\mmm\residencechunk\service\GuiService$PendingTransform.class

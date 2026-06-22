@@ -198,7 +198,7 @@ public final class SelectionService implements Listener {
         if (!plugin.getConfig().getBoolean("visual.current-chunk-enabled", true)) {
             return;
         }
-        visualService.drawBounds(player, ChunkBounds.single(player.getChunk()), player.getWorld(), Color.YELLOW);
+        visualService.drawCurrentChunk(player);
     }
 
     private void sendSelectionSummary(Player player, SelectionSession session) {

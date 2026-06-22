@@ -38,6 +38,7 @@
 可选：
 
 - Invero，用于服务器统一菜单入口
+- MMMVaultSync，用于超过金币扩建上限后的自定义货币扣费
 
 ## 构建
 
@@ -119,8 +120,11 @@ plugins/Invero/workspace/MMM领地入口.yml
 
 粒子颜色：
 
+- 黄色/特殊粒子：玩家当前脚下区块
 - 绿色：当前选区可创建
 - 红色：当前选区不可创建
+
+选区形状固定为矩形。玩家左键选择起点区块、右键选择终点区块后，插件会自动取两个点之间的矩形范围。
 
 ### 确认与取消
 
@@ -154,6 +158,13 @@ plugins/Invero/workspace/MMM领地入口.yml
 GUI 中扩张会先显示预览，再输入 `确认` 执行。
 
 命令方式会直接执行。
+
+默认扩张货币规则：
+
+- 扩张后领地总区块数不超过 `25` 时，使用 Vault 金币
+- 扩张后总区块数超过 `25` 时，使用 MMMVaultSync 自管货币
+- 默认自管货币 ID 为 `gems`，显示为宝石
+- 上限、货币 ID、显示名、单价都可以在 `config.yml` 调整
 
 ### 缩小领地
 
@@ -211,10 +222,40 @@ mmmland.admin
 
 删除那些本插件有记录、但 Residence 中已经不存在的托管记录。
 
-### 强制删除托管领地
+### 管理玩家领地
+
+管理员操作不扣除玩家货币，但仍会检查世界、矩形、面积上限和 Residence 碰撞。
+
+在管理员当前所在区块为玩家新增领地：
 
 ```text
-/mmmland admin delete <内部领地名>
+/mmmland admin create <玩家名> [显示名]
+```
+
+扩大指定玩家的领地：
+
+```text
+/mmmland admin expand <玩家名> <领地名> <北|南|东|西> <区块数>
+```
+
+缩小指定玩家的领地：
+
+```text
+/mmmland admin contract <玩家名> <领地名> <北|南|东|西> <区块数>
+```
+
+删除指定玩家的托管领地：
+
+```text
+/mmmland admin delete <玩家名> <领地名>
+```
+
+### 强制删除托管领地
+
+按 Residence 内部领地名删除，适合处理显示名冲突或数据修复：
+
+```text
+/mmmland admin forcedelete <内部领地名>
 ```
 
 会删除底层领地（Residence）和本插件托管记录。
@@ -294,6 +335,12 @@ pricing:
       4: 4000
   expand:
     price-per-chunk: 500
+    vault-max-chunks: 25
+    custom-currency:
+      enabled: true
+      id: "gems"
+      display-name: "宝石"
+      price-per-chunk: 1
   contract:
     refund-enabled: false
 ```
@@ -307,10 +354,35 @@ pricing:
 扩张价格：
 
 ```text
-新增区块数 * price-per-chunk
+扩张后总区块数 <= pricing.expand.vault-max-chunks：
+新增区块数 * pricing.expand.price-per-chunk，使用 Vault 金币
+
+扩张后总区块数 > pricing.expand.vault-max-chunks：
+新增区块数 * pricing.expand.custom-currency.price-per-chunk，使用 MMMVaultSync 自管货币
 ```
 
 缩小默认不返还货币。
+
+### 可视化配置
+
+```yaml
+visual:
+  selection:
+    step-blocks: 1
+    corner-height: 8
+    dust-size: 1.6
+    accent-enabled: true
+    accent-particle: END_ROD
+  current-chunk:
+    color: "255,220,40"
+    step-blocks: 2
+    corner-height: 4
+    dust-size: 1.1
+    accent-enabled: true
+    accent-particle: HAPPY_VILLAGER
+```
+
+`selection` 控制已选择范围的边界，`current-chunk` 控制玩家脚下当前区块提示。两者分开后，玩家离开已选范围时也能区分“当前位置提示”和“已选矩形范围”。
 
 ## 数据文件
 
@@ -365,6 +437,67 @@ MMM领地入口.yml
 - 数据保存
 
 ## 更新记录
+
+### 0.7.0
+
+类型：功能新增
+
+新增：
+
+- 管理员可为玩家新增托管领地：
+  - `/mmmland admin create <玩家名> [显示名]`
+- 管理员可扩大指定玩家领地：
+  - `/mmmland admin expand <玩家名> <领地名> <北|南|东|西> <区块数>`
+- 管理员可缩小指定玩家领地：
+  - `/mmmland admin contract <玩家名> <领地名> <北|南|东|西> <区块数>`
+- 管理员可删除指定玩家领地：
+  - `/mmmland admin delete <玩家名> <领地名>`
+- 原内部名强删保留为：
+  - `/mmmland admin forcedelete <内部领地名>`
+- 管理员操作写入 `operations.log`
+
+规则：
+
+- 管理员新增、扩大、缩小不扣费
+- 仍检查矩形、单领地总区块上限、世界限制、中心保护区和 Residence 碰撞
+
+### 0.6.0
+
+类型：功能调整
+
+调整：
+
+- 金币扩建上限从宽深判断改为总区块数判断
+- 默认 `pricing.expand.vault-max-chunks` 为 `25`
+- 扩建后总区块数不超过 `25` 时使用 Vault 金币，超过后使用 MMMVaultSync 自管货币
+- GUI 价格说明改为显示总区块数阈值
+- 创建、扩张、缩小前显式校验领地边界必须是有效矩形
+- 新增提示 `messages.rectangle-only`
+
+### 0.5.0
+
+类型：功能新增
+
+新增：
+
+- 玩家脚下当前区块预览和已选区块预览使用独立粒子样式
+- 当前区块预览增加独立颜色、密度、光柱高度和高亮粒子配置
+- 可视化选区文案明确为矩形选区
+- 扩建后领地超过配置宽深上限时，切换为 MMMVaultSync 自管货币扣费
+- 默认金币扩建上限为 `5x5` 宽深判断
+- 新增扩建配置：
+  - `pricing.expand.vault-max-width`
+  - `pricing.expand.vault-max-depth`
+  - `pricing.expand.custom-currency.enabled`
+  - `pricing.expand.custom-currency.id`
+  - `pricing.expand.custom-currency.display-name`
+  - `pricing.expand.custom-currency.price-per-chunk`
+- GUI 扩建预计费用会按扩建后尺寸显示金币或自定义货币
+
+调整：
+
+- 默认配置文件重新整理为 UTF-8 中文文案
+- `plugin.yml` 增加 `MMMVaultSync` 软依赖
 
 ### 0.4.0
 

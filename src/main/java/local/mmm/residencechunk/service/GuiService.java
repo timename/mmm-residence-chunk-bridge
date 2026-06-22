@@ -75,6 +75,8 @@ public final class GuiService implements Listener {
             "&7点击打开领地列表"));
         inventory.setItem(30, createItem(Material.GOLD_INGOT, "&6价格说明",
             "&7扩张单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName(),
+            "&7领地超过 &e" + plugin.settings().expandVaultMaxChunks()
+                + " 个区块 &7后使用: &e" + landService.getCustomExpandCurrencyDisplayName(),
             "&7多区块创建会按额外区块加价",
             "&7缩小不会返还货币"));
         inventory.setItem(32, createItem(Material.REDSTONE, "&e取消当前选区",
@@ -148,13 +150,14 @@ public final class GuiService implements Listener {
         inventory.setItem(13, createItem(Material.BOOK, mode == Mode.EXPAND ? "&a选择扩张区块数" : "&6选择缩小区块数",
             "&7方向: &f" + direction,
             mode == Mode.EXPAND
-                ? "&7单价: &e" + formatPrice(landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName()
+                ? "&7扩建后超过 " + plugin.settings().expandVaultMaxChunks() + " 个区块切换扩建货币"
                 : "&7缩小不会返还货币"));
         for (int i = 0; i < AMOUNTS.length; i++) {
             int amount = AMOUNTS[i];
             Material material = mode == Mode.EXPAND ? Material.GREEN_STAINED_GLASS : Material.ORANGE_STAINED_GLASS;
+            LandService.ExpandCost cost = landService.previewExpandCost(claim, direction, amount);
             String lore = mode == Mode.EXPAND
-                ? "&7预计费用: &e" + formatPrice(amount * landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName()
+                ? "&7预计费用: &e" + formatPrice(cost.price()) + " " + cost.currencyDisplayName()
                 : "&7本操作不会返还货币";
             inventory.setItem(20 + (i * 2), actionItem(material, "&f" + amount + " 个区块",
                 "apply:" + mode.name().toLowerCase(Locale.ROOT) + ":" + direction + ":" + claim.displayName() + ":" + amount, lore));
@@ -445,12 +448,13 @@ public final class GuiService implements Listener {
         pendingTransforms.put(player.getUniqueId(), new PendingTransform(claim.displayName(), mode, direction, amount));
         player.closeInventory();
         int delta = mode == Mode.EXPAND ? newBounds.area() - claim.bounds().area() : claim.bounds().area() - newBounds.area();
+        LandService.ExpandCost expandCost = mode == Mode.EXPAND ? landService.previewExpandCost(claim, direction, parsedAmount) : null;
         String messagePath = mode == Mode.EXPAND ? "transform-preview-expand" : "transform-preview-contract";
         player.sendMessage(plugin.message(messagePath)
             .replace("%name%", claim.displayName())
             .replace("%delta%", Integer.toString(delta))
-            .replace("%price%", formatPrice(delta * landService.getExpandPricePerChunk()))
-            .replace("%currency%", plugin.settings().currencyDisplayName()));
+            .replace("%price%", formatPrice(expandCost == null ? delta * landService.getExpandPricePerChunk() : expandCost.price()))
+            .replace("%currency%", expandCost == null ? plugin.settings().currencyDisplayName() : expandCost.currencyDisplayName()));
         player.sendMessage(plugin.message("transform-confirm-instruction"));
     }
 

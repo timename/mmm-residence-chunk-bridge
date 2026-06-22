@@ -15,6 +15,7 @@ public record PluginSettings(
     boolean fullHeight,
     int minChunks,
     int maxChunksPerClaim,
+    boolean rectangularOnly,
     int noClaimRadiusBlocks,
     int protectedCenterX,
     int protectedCenterZ,
@@ -24,6 +25,11 @@ public record PluginSettings(
     boolean fallbackLastTier,
     double createPricePerExtraChunk,
     double expandPricePerChunk,
+    int expandVaultMaxChunks,
+    boolean expandCustomCurrencyEnabled,
+    String expandCustomCurrencyId,
+    String expandCustomCurrencyDisplayName,
+    double expandCustomPricePerChunk,
     boolean contractRefundEnabled,
     String selectionTool,
     boolean selectionRequireTool,
@@ -38,6 +44,7 @@ public record PluginSettings(
         boolean fullHeight = config.getBoolean("claims.full-height", true);
         int minChunks = Math.max(1, config.getInt("claims.min-chunks", 1));
         int maxChunksPerClaim = Math.max(minChunks, config.getInt("claims.max-chunks-per-claim", 64));
+        boolean rectangularOnly = config.getBoolean("claims.rectangular-only", true);
         int noClaimRadiusBlocks = Math.max(0, config.getInt("claims.no-claim-radius-blocks", 0));
         int protectedCenterX = config.getInt("claims.protected-center-x", 0);
         int protectedCenterZ = config.getInt("claims.protected-center-z", 0);
@@ -67,6 +74,13 @@ public record PluginSettings(
         boolean fallbackLastTier = config.getBoolean("pricing.create.fallback-last-tier", true);
         double createPricePerExtraChunk = Math.max(0D, config.getDouble("pricing.create.price-per-extra-chunk", 500D));
         double expandPricePerChunk = Math.max(0D, config.getDouble("pricing.expand.price-per-chunk", 0D));
+        int legacyVaultMaxWidth = Math.max(1, config.getInt("pricing.expand.vault-max-width", 5));
+        int legacyVaultMaxDepth = Math.max(1, config.getInt("pricing.expand.vault-max-depth", 5));
+        int expandVaultMaxChunks = Math.max(1, config.getInt("pricing.expand.vault-max-chunks", legacyVaultMaxWidth * legacyVaultMaxDepth));
+        boolean expandCustomCurrencyEnabled = config.getBoolean("pricing.expand.custom-currency.enabled", true);
+        String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "yupay");
+        String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "自定义货币");
+        double expandCustomPricePerChunk = Math.max(0D, config.getDouble("pricing.expand.custom-currency.price-per-chunk", 1D));
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
         String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");
         boolean selectionRequireTool = config.getBoolean("selection.require-tool", true);
@@ -80,6 +94,7 @@ public record PluginSettings(
             fullHeight,
             minChunks,
             maxChunksPerClaim,
+            rectangularOnly,
             noClaimRadiusBlocks,
             protectedCenterX,
             protectedCenterZ,
@@ -89,6 +104,11 @@ public record PluginSettings(
             fallbackLastTier,
             createPricePerExtraChunk,
             expandPricePerChunk,
+            expandVaultMaxChunks,
+            expandCustomCurrencyEnabled,
+            expandCustomCurrencyId,
+            expandCustomCurrencyDisplayName,
+            expandCustomPricePerChunk,
             contractRefundEnabled,
             selectionTool,
             selectionRequireTool,

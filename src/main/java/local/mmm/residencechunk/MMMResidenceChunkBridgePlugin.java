@@ -6,6 +6,7 @@ import java.util.logging.Level;
 import local.mmm.residencechunk.command.LandCommand;
 import local.mmm.residencechunk.config.PluginSettings;
 import local.mmm.residencechunk.service.AuditLogService;
+import local.mmm.residencechunk.service.CustomCurrencyService;
 import local.mmm.residencechunk.service.EconomyService;
 import local.mmm.residencechunk.service.GuiService;
 import local.mmm.residencechunk.service.InveroMenuExporter;
@@ -55,7 +56,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
 
         economyService = new EconomyService(vaultEconomy, settings.currencyDisplayName());
         auditLogService = new AuditLogService(this);
-        landService = new LandService(this, settings, dataStore, economyService, residenceHook, auditLogService);
+        landService = new LandService(this, settings, dataStore, economyService, new CustomCurrencyService(), residenceHook, auditLogService);
         visualService = new VisualService(this);
         guiService = new GuiService(this, landService, visualService);
         selectionService = new SelectionService(this, landService, visualService);

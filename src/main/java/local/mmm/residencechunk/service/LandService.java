@@ -15,6 +15,7 @@ import local.mmm.residencechunk.model.ChunkBounds;
 import local.mmm.residencechunk.model.ChunkBounds.Direction;
 import local.mmm.residencechunk.model.ManagedClaim;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,6 +28,7 @@ public final class LandService {
     private PluginSettings settings;
     private final LandDataStore dataStore;
     private final EconomyService economyService;
+    private final CustomCurrencyService customCurrencyService;
     private final ResidenceHook residenceHook;
     private final AuditLogService auditLogService;
 
@@ -35,6 +37,7 @@ public final class LandService {
         PluginSettings settings,
         LandDataStore dataStore,
         EconomyService economyService,
+        CustomCurrencyService customCurrencyService,
         ResidenceHook residenceHook,
         AuditLogService auditLogService
     ) {
@@ -42,6 +45,7 @@ public final class LandService {
         this.settings = settings;
         this.dataStore = dataStore;
         this.economyService = economyService;
+        this.customCurrencyService = customCurrencyService;
         this.residenceHook = residenceHook;
         this.auditLogService = auditLogService;
     }
@@ -75,6 +79,9 @@ public final class LandService {
     public CreateCheckResult prepareCreateClaim(Player player, String displayName, ChunkBounds bounds) {
         if (!isAllowedWorld(player.getWorld().getName())) {
             return CreateCheckResult.denied(plugin.message("world-not-allowed"));
+        }
+        if (!isAllowedShape(bounds)) {
+            return CreateCheckResult.denied(plugin.message("rectangle-only"));
         }
 
         int currentClaims = getClaims(player.getUniqueId()).size();
@@ -193,12 +200,22 @@ public final class LandService {
             return;
         }
 
-        ChunkBounds newBounds = claim.bounds().expand(direction, amount);
-        int deltaChunks = newBounds.area() - claim.bounds().area();
-        double price = deltaChunks * settings.expandPricePerChunk();
+        ExpandCost cost = previewExpandCost(claim, directionInput, amount);
+        ChunkBounds newBounds = cost.bounds();
+        int deltaChunks = cost.deltaChunks();
+        if (!isAllowedShape(newBounds)) {
+            player.sendMessage(plugin.message("rectangle-only"));
+            return;
+        }
 
-        if (price > 0 && !economyService.has(player.getUniqueId(), price)) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), price));
+        String availabilityMessage = checkCurrencyAvailability(cost);
+        if (availabilityMessage != null) {
+            player.sendMessage(availabilityMessage);
+            return;
+        }
+
+        if (cost.price() > 0 && !hasFunds(player, cost)) {
+            player.sendMessage(money(plugin.message("insufficient-funds"), cost.price(), cost.currencyDisplayName()));
             return;
         }
 
@@ -221,8 +238,8 @@ public final class LandService {
             return;
         }
 
-        if (price > 0 && !economyService.withdraw(player.getUniqueId(), price)) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), price));
+        if (cost.price() > 0 && !withdrawFunds(player, cost, "mmm-land-expand:" + claim.residenceName())) {
+            player.sendMessage(money(plugin.message("insufficient-funds"), cost.price(), cost.currencyDisplayName()));
             return;
         }
 
@@ -246,10 +263,12 @@ public final class LandService {
         player.sendMessage(money(
             plugin.message("expand-success"),
             Map.of("name", updatedClaim.displayName(), "delta", Integer.toString(deltaChunks)),
-            price
+            cost.price(),
+            cost.currencyDisplayName()
         ));
         auditLogService.log(player, "EXPAND", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
-            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area() + " price=" + formatAmount(price));
+            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area() + " price=" + formatAmount(cost.price())
+            + " currency=" + cost.currencyDisplayName());
     }
 
     public void contractClaim(Player player, String residenceName, String directionInput, String amountInput) {
@@ -271,6 +290,10 @@ public final class LandService {
         }
 
         ChunkBounds newBounds = claim.bounds().contract(direction, amount);
+        if (!isAllowedShape(newBounds)) {
+            player.sendMessage(plugin.message("rectangle-only"));
+            return;
+        }
         if (newBounds.width() <= 0 || newBounds.depth() <= 0 || newBounds.area() < settings.minChunks()) {
             player.sendMessage(plugin.message("cannot-contract-below-min"));
             return;
@@ -395,21 +418,7 @@ public final class LandService {
             player.sendMessage(plugin.message("residence-not-managed"));
             return;
         }
-
-        Object manager = getResidenceManager();
-        Object residence = residenceHook.getByName(manager, claim.residenceName());
-        if (residence != null) {
-            residenceHook.removeResidence(manager, player, residence, true);
-        }
-        dataStore.remove(claim.residenceName());
-        dataStore.save();
-        player.sendMessage(render(plugin.message("admin-delete-success"), Map.of(
-            "owner", claim.ownerName(),
-            "display", claim.displayName(),
-            "name", claim.residenceName()
-        )));
-        auditLogService.log(player, "ADMIN_DELETE", "claim=" + claim.residenceName() + " display=" + claim.displayName()
-            + " owner=" + claim.ownerName());
+        deleteClaimInternal(player, claim, true);
     }
 
     public void renameClaim(Player player, String currentName, String newDisplayName) {
@@ -468,6 +477,89 @@ public final class LandService {
             .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    public List<String> ownedClaimNames(String playerName) {
+        OfflinePlayer owner = resolveOfflinePlayer(playerName);
+        if (owner == null) {
+            return List.of();
+        }
+        return getClaims(owner.getUniqueId()).stream()
+            .map(ManagedClaim::displayName)
+            .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    public void adminCreateClaim(Player admin, String ownerName, String displayName) {
+        OfflinePlayer owner = resolveOfflinePlayer(ownerName);
+        if (owner == null) {
+            admin.sendMessage(plugin.message("invalid-player"));
+            return;
+        }
+
+        ChunkBounds bounds = ChunkBounds.single(admin.getChunk());
+        CreateCheckResult check = prepareAdminCreateClaim(admin, owner, displayName, bounds);
+        if (!check.allowed()) {
+            if (check.message() != null) {
+                admin.sendMessage(check.message());
+            }
+            return;
+        }
+
+        boolean created = residenceHook.addResidence(getResidenceManager(), admin, owner.getName(), owner.getUniqueId(), check.internalName(),
+            lowLocation(admin.getWorld(), bounds), highLocation(admin.getWorld(), bounds), true);
+        if (!created) {
+            admin.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+
+        Object residence = residenceHook.getByName(getResidenceManager(), check.internalName());
+        if (residence != null && plugin.getConfig().getBoolean("claims.set-teleport-on-create", true)) {
+            residenceHook.setTeleportLocation(residence, admin, true);
+        }
+
+        ManagedClaim claim = new ManagedClaim(
+            check.internalName(),
+            check.displayName(),
+            owner.getUniqueId(),
+            owner.getName(),
+            admin.getWorld().getName(),
+            bounds
+        );
+        dataStore.put(claim);
+        dataStore.save();
+        admin.sendMessage(render(plugin.message("admin-create-success"), Map.of(
+            "name", claim.displayName(),
+            "owner", claim.ownerName(),
+            "world", claim.worldName(),
+            "x", Integer.toString(bounds.minChunkX()),
+            "z", Integer.toString(bounds.minChunkZ())
+        )));
+        auditLogService.log(admin, "ADMIN_CREATE", "claim=" + claim.residenceName() + " display=" + claim.displayName()
+            + " owner=" + claim.ownerName() + " world=" + claim.worldName() + " chunks=" + claim.bounds().area());
+    }
+
+    public void adminExpandClaim(Player admin, String ownerName, String residenceName, String directionInput, String amountInput) {
+        ManagedClaim claim = requireTargetClaim(admin, ownerName, residenceName);
+        if (claim == null) {
+            return;
+        }
+        adminTransformClaim(admin, claim, directionInput, amountInput, true);
+    }
+
+    public void adminContractClaim(Player admin, String ownerName, String residenceName, String directionInput, String amountInput) {
+        ManagedClaim claim = requireTargetClaim(admin, ownerName, residenceName);
+        if (claim == null) {
+            return;
+        }
+        adminTransformClaim(admin, claim, directionInput, amountInput, false);
+    }
+
+    public void adminDeletePlayerClaim(Player admin, String ownerName, String residenceName) {
+        ManagedClaim claim = requireTargetClaim(admin, ownerName, residenceName);
+        if (claim == null) {
+            return;
+        }
+        deleteClaimInternal(admin, claim, true);
+    }
+
     public ManagedClaim resolveOwnedClaim(Player player, String input) {
         List<ManagedClaim> owned = getClaims(player.getUniqueId());
         if (owned.isEmpty()) {
@@ -508,6 +600,10 @@ public final class LandService {
         return settings.expandPricePerChunk();
     }
 
+    public String getCustomExpandCurrencyDisplayName() {
+        return customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName());
+    }
+
     public ChunkBounds singleChunkBounds(Player player) {
         return ChunkBounds.single(player.getChunk());
     }
@@ -520,6 +616,21 @@ public final class LandService {
         return expand ? claim.bounds().expand(direction, amount) : claim.bounds().contract(direction, amount);
     }
 
+    public ExpandCost previewExpandCost(ManagedClaim claim, String directionInput, int amount) {
+        Direction direction = Direction.parse(directionInput);
+        if (direction == null || amount <= 0) {
+            return new ExpandCost(claim.bounds(), 0, 0D, economyService.currencyDisplayName(), false);
+        }
+        ChunkBounds newBounds = claim.bounds().expand(direction, amount);
+        int deltaChunks = Math.max(0, newBounds.area() - claim.bounds().area());
+        boolean customCurrency = requiresCustomCurrency(newBounds);
+        double price = deltaChunks * (customCurrency ? settings.expandCustomPricePerChunk() : settings.expandPricePerChunk());
+        String currency = customCurrency
+            ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
+            : economyService.currencyDisplayName();
+        return new ExpandCost(newBounds, deltaChunks, price, currency, customCurrency);
+    }
+
     private ManagedClaim requireOwnedClaim(Player player, String residenceName) {
         ManagedClaim claim = resolveOwnedClaim(player, residenceName);
         if (claim == null) {
@@ -530,6 +641,36 @@ public final class LandService {
             return null;
         }
         return claim;
+    }
+
+    private ManagedClaim requireTargetClaim(Player admin, String ownerName, String residenceName) {
+        OfflinePlayer owner = resolveOfflinePlayer(ownerName);
+        if (owner == null) {
+            admin.sendMessage(plugin.message("invalid-player"));
+            return null;
+        }
+        ManagedClaim claim = resolveOwnedClaim(owner.getUniqueId(), residenceName);
+        if (claim == null) {
+            admin.sendMessage(plugin.message("residence-not-managed"));
+            return null;
+        }
+        return claim;
+    }
+
+    private ManagedClaim resolveOwnedClaim(UUID ownerUuid, String input) {
+        List<ManagedClaim> owned = getClaims(ownerUuid);
+        ManagedClaim exactInternal = matchFirst(owned, claim -> claim.residenceName().equalsIgnoreCase(input));
+        if (exactInternal != null) {
+            return exactInternal;
+        }
+        ManagedClaim exactDisplay = matchFirst(owned, claim -> claim.displayName().equalsIgnoreCase(input));
+        if (exactDisplay != null) {
+            return exactDisplay;
+        }
+        List<ManagedClaim> partialDisplay = owned.stream()
+            .filter(claim -> claim.displayName().toLowerCase(Locale.ROOT).contains(input.toLowerCase(Locale.ROOT)))
+            .toList();
+        return partialDisplay.size() == 1 ? partialDisplay.get(0) : null;
     }
 
     private ManagedClaim resolveAnyClaim(String input) {
@@ -585,29 +726,232 @@ public final class LandService {
         return basePrice + (Math.max(0, chunks - 1) * settings.createPricePerExtraChunk());
     }
 
+    private boolean requiresCustomCurrency(ChunkBounds bounds) {
+        return bounds.area() > settings.expandVaultMaxChunks();
+    }
+
+    private boolean isAllowedShape(ChunkBounds bounds) {
+        return !settings.rectangularOnly() || bounds.isValidRectangle();
+    }
+
+    private CreateCheckResult prepareAdminCreateClaim(Player admin, OfflinePlayer owner, String displayName, ChunkBounds bounds) {
+        if (!isAllowedWorld(admin.getWorld().getName())) {
+            return CreateCheckResult.denied(plugin.message("world-not-allowed"));
+        }
+        if (!isAllowedShape(bounds)) {
+            return CreateCheckResult.denied(plugin.message("rectangle-only"));
+        }
+        if (bounds.area() > settings.maxChunksPerClaim()) {
+            return CreateCheckResult.denied(render(plugin.message("too-many-chunks"), Map.of(
+                "chunks", Integer.toString(bounds.area()),
+                "limit", Integer.toString(settings.maxChunksPerClaim())
+            )));
+        }
+        if (isInsideProtectedCenter(bounds)) {
+            return CreateCheckResult.denied(plugin.message("inside-protected-center"));
+        }
+
+        String finalDisplayName = normalizeRequestedDisplayName(owner, displayName);
+        if (finalDisplayName == null) {
+            return CreateCheckResult.denied(render(plugin.message("display-name-exists"), Map.of("name", displayNameCandidate(owner.getUniqueId(), displayName))));
+        }
+
+        String internalName = generateInternalName(owner);
+        Object area = toArea(admin.getWorld(), bounds);
+        Object manager = getResidenceManager();
+        String collision = residenceHook.checkAreaCollision(manager, area, null, owner.getUniqueId());
+        if (collision != null) {
+            return CreateCheckResult.denied(render(plugin.message("collision"), Map.of("target", collision)));
+        }
+
+        return new CreateCheckResult(true, null, finalDisplayName, internalName, admin.getWorld().getName(), bounds, 0D);
+    }
+
+    private void adminTransformClaim(Player actor, ManagedClaim claim, String directionInput, String amountInput, boolean expand) {
+        Direction direction = Direction.parse(directionInput);
+        if (direction == null) {
+            actor.sendMessage(plugin.message("invalid-direction"));
+            return;
+        }
+        Integer amount = parsePositiveInt(amountInput);
+        if (amount == null) {
+            actor.sendMessage(plugin.message("invalid-amount"));
+            return;
+        }
+
+        ChunkBounds newBounds = expand ? claim.bounds().expand(direction, amount) : claim.bounds().contract(direction, amount);
+        if (!isAllowedShape(newBounds)) {
+            actor.sendMessage(plugin.message("rectangle-only"));
+            return;
+        }
+        if (!expand && (newBounds.width() <= 0 || newBounds.depth() <= 0 || newBounds.area() < settings.minChunks())) {
+            actor.sendMessage(plugin.message("cannot-contract-below-min"));
+            return;
+        }
+        if (newBounds.area() > settings.maxChunksPerClaim()) {
+            actor.sendMessage(render(plugin.message("too-many-chunks"), Map.of(
+                "chunks", Integer.toString(newBounds.area()),
+                "limit", Integer.toString(settings.maxChunksPerClaim())
+            )));
+            return;
+        }
+
+        World world = requireClaimWorld(actor, claim);
+        if (world == null) {
+            return;
+        }
+
+        Object manager = getResidenceManager();
+        Object residence = residenceHook.getByName(manager, claim.residenceName());
+        if (residence == null) {
+            actor.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+
+        Object area = toArea(world, newBounds);
+        String collision = residenceHook.checkAreaCollision(manager, area, residence, claim.ownerUuid());
+        if (collision != null) {
+            actor.sendMessage(render(plugin.message("collision"), Map.of("target", collision)));
+            return;
+        }
+
+        boolean updated = residenceHook.replaceArea(residence, actor, area, MAIN_AREA, true);
+        if (!updated) {
+            actor.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+
+        int deltaChunks = expand ? newBounds.area() - claim.bounds().area() : claim.bounds().area() - newBounds.area();
+        ManagedClaim updatedClaim = new ManagedClaim(
+            claim.residenceName(),
+            claim.displayName(),
+            claim.ownerUuid(),
+            claim.ownerName(),
+            claim.worldName(),
+            newBounds
+        );
+        dataStore.put(updatedClaim);
+        dataStore.save();
+
+        actor.sendMessage(render(plugin.message(expand ? "admin-expand-success" : "admin-contract-success"), Map.of(
+            "name", updatedClaim.displayName(),
+            "owner", updatedClaim.ownerName(),
+            "delta", Integer.toString(deltaChunks),
+            "chunks", Integer.toString(updatedClaim.bounds().area())
+        )));
+        auditLogService.log(actor, expand ? "ADMIN_EXPAND" : "ADMIN_CONTRACT",
+            "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
+                + " owner=" + updatedClaim.ownerName() + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area());
+    }
+
+    private void deleteClaimInternal(Player actor, ManagedClaim claim, boolean adminAction) {
+        Object manager = getResidenceManager();
+        Object residence = residenceHook.getByName(manager, claim.residenceName());
+        if (residence != null) {
+            residenceHook.removeResidence(manager, actor, residence, true);
+        }
+        dataStore.remove(claim.residenceName());
+        dataStore.save();
+        actor.sendMessage(render(plugin.message(adminAction ? "admin-delete-success" : "delete-success"), Map.of(
+            "owner", claim.ownerName(),
+            "display", claim.displayName(),
+            "name", claim.displayName()
+        )));
+        auditLogService.log(actor, adminAction ? "ADMIN_DELETE" : "DELETE", "claim=" + claim.residenceName()
+            + " display=" + claim.displayName() + " owner=" + claim.ownerName());
+    }
+
+    private OfflinePlayer resolveOfflinePlayer(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        Player online = plugin.getServer().getPlayerExact(name);
+        if (online != null) {
+            return online;
+        }
+        OfflinePlayer offline = plugin.getServer().getOfflinePlayer(name);
+        if (offline == null || (!offline.hasPlayedBefore() && !offline.isOnline())) {
+            return null;
+        }
+        return offline;
+    }
+
+    private String checkCurrencyAvailability(ExpandCost cost) {
+        if (!cost.customCurrency()) {
+            return null;
+        }
+        if (!settings.expandCustomCurrencyEnabled()) {
+            return plugin.message("custom-currency-disabled");
+        }
+        if (!customCurrencyService.isAvailable(settings.expandCustomCurrencyId())) {
+            return render(plugin.message("custom-currency-unavailable"), Map.of(
+                "currency", cost.currencyDisplayName(),
+                "currencyId", settings.expandCustomCurrencyId()
+            ), cost.currencyDisplayName());
+        }
+        return null;
+    }
+
+    private boolean hasFunds(Player player, ExpandCost cost) {
+        if (cost.customCurrency()) {
+            return customCurrencyService.has(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price());
+        }
+        return economyService.has(player.getUniqueId(), cost.price());
+    }
+
+    private boolean withdrawFunds(Player player, ExpandCost cost, String reason) {
+        if (cost.customCurrency()) {
+            return customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price(), reason);
+        }
+        return economyService.withdraw(player.getUniqueId(), cost.price());
+    }
+
     private String generateInternalName(Player player) {
+        return generateInternalName(player.getUniqueId());
+    }
+
+    private String generateInternalName(OfflinePlayer player) {
+        return generateInternalName(player.getUniqueId());
+    }
+
+    private String generateInternalName(UUID playerUuid) {
         String prefix = settings.internalNamePrefix().toLowerCase(Locale.ROOT);
-        return prefix + "_" + player.getUniqueId().toString().substring(0, 8) + "_" + System.currentTimeMillis();
+        return prefix + "_" + playerUuid.toString().substring(0, 8) + "_" + System.currentTimeMillis();
     }
 
     private String normalizeRequestedDisplayName(Player player, String requestedDisplayName) {
         return normalizeRequestedDisplayName(player, requestedDisplayName, null);
     }
 
-    private String normalizeRequestedDisplayName(Player player, String requestedDisplayName, String ignoredResidenceName) {
-        String finalDisplayName = requestedDisplayName == null || requestedDisplayName.isBlank()
-            ? "领地" + (getClaims(player.getUniqueId()).size() + 1)
-            : requestedDisplayName.trim();
+    private String normalizeRequestedDisplayName(OfflinePlayer player, String requestedDisplayName) {
+        return normalizeRequestedDisplayName(player.getUniqueId(), requestedDisplayName, null);
+    }
 
-        boolean exists = getClaims(player.getUniqueId()).stream()
+    private String normalizeRequestedDisplayName(Player player, String requestedDisplayName, String ignoredResidenceName) {
+        String normalized = normalizeRequestedDisplayName(player.getUniqueId(), requestedDisplayName, ignoredResidenceName);
+        if (normalized == null) {
+            player.sendMessage(render(plugin.message("display-name-exists"), Map.of("name", displayNameCandidate(player.getUniqueId(), requestedDisplayName))));
+        }
+        return normalized;
+    }
+
+    private String normalizeRequestedDisplayName(UUID ownerUuid, String requestedDisplayName, String ignoredResidenceName) {
+        String finalDisplayName = displayNameCandidate(ownerUuid, requestedDisplayName);
+
+        boolean exists = getClaims(ownerUuid).stream()
             .filter(claim -> ignoredResidenceName == null || !claim.residenceName().equalsIgnoreCase(ignoredResidenceName))
             .map(ManagedClaim::displayName)
             .anyMatch(name -> name.equalsIgnoreCase(finalDisplayName));
         if (exists) {
-            player.sendMessage(render(plugin.message("display-name-exists"), Map.of("name", finalDisplayName)));
             return null;
         }
         return finalDisplayName;
+    }
+
+    private String displayNameCandidate(UUID ownerUuid, String requestedDisplayName) {
+        return requestedDisplayName == null || requestedDisplayName.isBlank()
+            ? "领地" + (getClaims(ownerUuid).size() + 1)
+            : requestedDisplayName.trim();
     }
 
     private ManagedClaim matchFirst(List<ManagedClaim> claims, Function<ManagedClaim, Boolean> matcher) {
@@ -667,19 +1011,31 @@ public final class LandService {
     }
 
     private String render(String message, Map<String, String> replacements) {
+        return render(message, replacements, economyService.currencyDisplayName());
+    }
+
+    private String render(String message, Map<String, String> replacements, String currencyDisplayName) {
         String output = plugin.message("prefix") + message;
         for (Map.Entry<String, String> entry : replacements.entrySet()) {
             output = output.replace("%" + entry.getKey() + "%", Objects.toString(entry.getValue(), ""));
         }
-        return output.replace("%currency%", economyService.currencyDisplayName());
+        return output.replace("%currency%", currencyDisplayName);
     }
 
     private String money(String message, Map<String, String> replacements, double amount) {
-        return render(message, replacements).replace("%price%", formatAmount(amount));
+        return money(message, replacements, amount, economyService.currencyDisplayName());
+    }
+
+    private String money(String message, Map<String, String> replacements, double amount, String currencyDisplayName) {
+        return render(message, replacements, currencyDisplayName).replace("%price%", formatAmount(amount));
     }
 
     private String money(String message, double amount) {
         return money(message, Map.of(), amount);
+    }
+
+    private String money(String message, double amount, String currencyDisplayName) {
+        return money(message, Map.of(), amount, currencyDisplayName);
     }
 
     private String formatAmount(double amount) {
@@ -705,5 +1061,14 @@ public final class LandService {
         public static CreateCheckResult allowed(String displayName, String internalName, String worldName, ChunkBounds bounds, double price) {
             return new CreateCheckResult(true, null, displayName, internalName, worldName, bounds, price);
         }
+    }
+
+    public record ExpandCost(
+        ChunkBounds bounds,
+        int deltaChunks,
+        double price,
+        String currencyDisplayName,
+        boolean customCurrency
+    ) {
     }
 }

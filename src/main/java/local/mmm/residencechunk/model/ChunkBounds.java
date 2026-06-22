@@ -21,6 +21,10 @@ public record ChunkBounds(int minChunkX, int maxChunkX, int minChunkZ, int maxCh
         return width() * depth();
     }
 
+    public boolean isValidRectangle() {
+        return minChunkX <= maxChunkX && minChunkZ <= maxChunkZ && width() > 0 && depth() > 0;
+    }
+
     public ChunkBounds expand(Direction direction, int amount) {
         return switch (direction) {
             case NORTH -> new ChunkBounds(minChunkX, maxChunkX, minChunkZ - amount, maxChunkZ);
