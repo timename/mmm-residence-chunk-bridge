@@ -9,12 +9,15 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public record PluginSettings(
+    String storageType,
+    MysqlStorageSettings mysqlStorage,
     Set<String> allowedWorlds,
     String currencyDisplayName,
     String internalNamePrefix,
     boolean fullHeight,
     int minChunks,
     int maxChunksPerClaim,
+    int minClaimSpacingChunks,
     boolean rectangularOnly,
     int noClaimRadiusBlocks,
     int protectedCenterX,
@@ -42,12 +45,21 @@ public record PluginSettings(
 ) {
 
     public static PluginSettings fromConfig(FileConfiguration config) {
+        String storageType = config.getString("storage.type", "yaml").toLowerCase();
+        MysqlStorageSettings mysqlStorage = new MysqlStorageSettings(
+            config.getString("storage.mysql.jdbc-url", "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"),
+            config.getString("storage.mysql.username", "root"),
+            config.getString("storage.mysql.password", ""),
+            config.getString("storage.mysql.table-prefix", "mmm_land_"),
+            config.getBoolean("storage.mysql.migrate-from-yaml-if-empty", true)
+        );
         Set<String> allowedWorlds = new HashSet<>(config.getStringList("allowed-worlds"));
         String currencyDisplayName = config.getString("currency.display-name", "货币");
         String internalNamePrefix = config.getString("claims.internal-name-prefix", "chunk");
         boolean fullHeight = config.getBoolean("claims.full-height", true);
         int minChunks = Math.max(1, config.getInt("claims.min-chunks", 1));
         int maxChunksPerClaim = Math.max(minChunks, config.getInt("claims.max-chunks-per-claim", 64));
+        int minClaimSpacingChunks = Math.max(0, config.getInt("claims.min-spacing-chunks", 1));
         boolean rectangularOnly = config.getBoolean("claims.rectangular-only", true);
         int noClaimRadiusBlocks = Math.max(0, config.getInt("claims.no-claim-radius-blocks", 0));
         int protectedCenterX = config.getInt("claims.protected-center-x", 0);
@@ -94,8 +106,8 @@ public record PluginSettings(
         int legacyVaultMaxDepth = Math.max(1, config.getInt("pricing.expand.vault-max-depth", 5));
         int expandVaultMaxChunks = Math.max(1, config.getInt("pricing.expand.vault-max-chunks", legacyVaultMaxWidth * legacyVaultMaxDepth));
         boolean expandCustomCurrencyEnabled = config.getBoolean("pricing.expand.custom-currency.enabled", true);
-        String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "mengmeng_crystal");
-        String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "萌萌水晶");
+        String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "mengmeng_shell");
+        String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "萌萌贝壳");
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
         String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");
         boolean selectionRequireTool = config.getBoolean("selection.require-tool", true);
@@ -111,12 +123,15 @@ public record PluginSettings(
         }
 
         return new PluginSettings(
+            storageType,
+            mysqlStorage,
             Collections.unmodifiableSet(allowedWorlds),
             currencyDisplayName,
             internalNamePrefix,
             fullHeight,
             minChunks,
             maxChunksPerClaim,
+            minClaimSpacingChunks,
             rectangularOnly,
             noClaimRadiusBlocks,
             protectedCenterX,
@@ -147,6 +162,15 @@ public record PluginSettings(
     public record WorldClaimRule(
         int minDistanceFromOriginXz,
         int maxDistanceFromOriginXz
+    ) {
+    }
+
+    public record MysqlStorageSettings(
+        String jdbcUrl,
+        String username,
+        String password,
+        String tablePrefix,
+        boolean migrateFromYamlIfEmpty
     ) {
     }
 }

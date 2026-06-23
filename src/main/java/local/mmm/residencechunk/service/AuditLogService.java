@@ -17,7 +17,7 @@ public final class AuditLogService {
 
     public AuditLogService(MMMResidenceChunkBridgePlugin plugin) {
         this.plugin = plugin;
-        this.file = new File(plugin.getDataFolder(), "operations.log");
+        this.file = new File(plugin.pluginDataFolder(), "operations.log");
     }
 
     public void log(Player player, String action, String detail) {

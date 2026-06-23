@@ -695,7 +695,7 @@ public final class GuiService implements Listener {
     }
 
     private void previewBounds(Player player, ChunkBounds bounds, String worldName) {
-        int durationTicks = Math.max(20, plugin.getConfig().getInt("visual.preview-duration-ticks", 200));
+        int durationTicks = Math.max(20, plugin.pluginConfig().getInt("visual.preview-duration-ticks", 200));
         visualService.previewForDuration(player, bounds, worldName, Color.AQUA, durationTicks);
     }
 

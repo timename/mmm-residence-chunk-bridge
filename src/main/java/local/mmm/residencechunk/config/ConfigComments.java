@@ -11,10 +11,30 @@ public final class ConfigComments {
     public static void apply(FileConfiguration config) {
         config.options().parseComments(true);
         config.options().header("""
-            mmmResidenceChunkBridge 功能配置
+            mmm-residence-chunk-bridge 功能配置
             语言文案已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
             本文件的中文注释由插件代码维护，插件保存或重载配置时会自动补回。
             """);
+
+        comment(config, "storage",
+            "托管领地元数据存储方式。",
+            "yaml：继续使用 plugins/MMMResidenceChunkBridge/claims.yml。",
+            "mysql：使用 MySQL 数据库存储，并可在数据库为空时自动导入 claims.yml。");
+        comment(config, "storage.type",
+            "存储类型，可选：yaml、mysql。",
+            "默认 yaml，切换 mysql 前请先配置下面的连接信息。");
+        comment(config, "storage.mysql", "MySQL 存储配置。");
+        comment(config, "storage.mysql.jdbc-url",
+            "MySQL JDBC 连接地址。",
+            "database 需要提前创建，插件会自动创建表。");
+        comment(config, "storage.mysql.username", "数据库用户名。");
+        comment(config, "storage.mysql.password", "数据库密码。");
+        comment(config, "storage.mysql.table-prefix",
+            "数据表前缀，最终表名默认为 mmm_land_claims。",
+            "只允许字母、数字和下划线，其他字符会自动替换为下划线。");
+        comment(config, "storage.mysql.migrate-from-yaml-if-empty",
+            "当 MySQL 表为空时，是否自动从 claims.yml 导入旧数据。",
+            "建议首次切换 MySQL 时保持 true。");
 
         comment(config, "allowed-worlds",
             "允许玩家创建、扩建、调整领地的世界名列表。",
@@ -51,6 +71,9 @@ public final class ConfigComments {
         comment(config, "claims.max-chunks-per-claim",
             "单个领地最大区块总数。",
             "创建、扩建、工具调整边界都会检查这个上限。");
+        comment(config, "claims.min-spacing-chunks",
+            "领地之间至少保留多少个空区块。",
+            "1 表示任意两个托管领地之间至少隔 1 个完整区块；0 表示不限制。");
         comment(config, "claims.no-claim-radius-blocks",
             "出生点/服务器中心保护半径，单位为方块。",
             "0 表示不启用中心保护。");

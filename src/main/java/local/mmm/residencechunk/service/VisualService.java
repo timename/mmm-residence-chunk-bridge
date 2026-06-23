@@ -22,7 +22,7 @@ public final class VisualService {
             return null;
         }
         BukkitTask[] taskRef = new BukkitTask[1];
-        long periodTicks = Math.max(2L, plugin.getConfig().getLong("visual.preview-period-ticks", 6L));
+        long periodTicks = Math.max(2L, plugin.pluginConfig().getLong("visual.preview-period-ticks", 6L));
         taskRef[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline()) {
                 cancel(taskRef[0]);
@@ -43,13 +43,13 @@ public final class VisualService {
     }
 
     private void drawBounds(Player player, ChunkBounds bounds, World world, Color color, String configPath) {
-        int step = Math.max(1, plugin.getConfig().getInt(configPath + ".step-blocks",
-            plugin.getConfig().getInt("visual.preview-step-blocks", 1)));
-        int cornerHeight = Math.max(1, plugin.getConfig().getInt(configPath + ".corner-height",
-            plugin.getConfig().getInt("visual.preview-corner-height", 8)));
-        float dustSize = (float) Math.max(0.2D, plugin.getConfig().getDouble(configPath + ".dust-size",
-            plugin.getConfig().getDouble("visual.preview-dust-size", 1.6D)));
-        boolean accentEnabled = plugin.getConfig().getBoolean(configPath + ".accent-enabled", true);
+        int step = Math.max(1, plugin.pluginConfig().getInt(configPath + ".step-blocks",
+            plugin.pluginConfig().getInt("visual.preview-step-blocks", 1)));
+        int cornerHeight = Math.max(1, plugin.pluginConfig().getInt(configPath + ".corner-height",
+            plugin.pluginConfig().getInt("visual.preview-corner-height", 8)));
+        float dustSize = (float) Math.max(0.2D, plugin.pluginConfig().getDouble(configPath + ".dust-size",
+            plugin.pluginConfig().getDouble("visual.preview-dust-size", 1.6D)));
+        boolean accentEnabled = plugin.pluginConfig().getBoolean(configPath + ".accent-enabled", true);
         Particle accentParticle = configuredParticle(configPath + ".accent-particle", Particle.END_ROD);
         int minX = bounds.minChunkX() << 4;
         int minZ = bounds.minChunkZ() << 4;
@@ -91,7 +91,7 @@ public final class VisualService {
     }
 
     private Color configuredColor(String path, Color fallback) {
-        String raw = plugin.getConfig().getString(path, null);
+        String raw = plugin.pluginConfig().getString(path, null);
         if (raw == null || raw.isBlank()) {
             return fallback;
         }
@@ -115,7 +115,7 @@ public final class VisualService {
     }
 
     private Particle configuredParticle(String path, Particle fallback) {
-        String raw = plugin.getConfig().getString(path, fallback.name());
+        String raw = plugin.pluginConfig().getString(path, fallback.name());
         try {
             return Particle.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException exception) {

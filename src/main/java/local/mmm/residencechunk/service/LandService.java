@@ -129,6 +129,10 @@ public final class LandService implements Listener {
         if (isInsideProtectedCenter(bounds)) {
             return CreateCheckResult.denied(plugin.message("inside-protected-center"));
         }
+        String spacingMessage = checkClaimSpacing(player.getWorld().getName(), bounds, null);
+        if (spacingMessage != null) {
+            return CreateCheckResult.denied(spacingMessage);
+        }
 
         String internalName = generateInternalName(player);
         Object area = toArea(player.getWorld(), bounds);
@@ -176,7 +180,7 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (plugin.getConfig().getBoolean("claims.set-teleport-on-create", true)) {
+        if (plugin.pluginConfig().getBoolean("claims.set-teleport-on-create", true)) {
             residenceHook.setTeleportLocation(residence, player, true);
         }
 
@@ -230,6 +234,11 @@ public final class LandService implements Listener {
         String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, false);
         if (worldRuleMessage != null) {
             player.sendMessage(worldRuleMessage);
+            return;
+        }
+        String spacingMessage = checkClaimSpacing(claim.worldName(), newBounds, claim.residenceName());
+        if (spacingMessage != null) {
+            player.sendMessage(spacingMessage);
             return;
         }
 
@@ -327,6 +336,11 @@ public final class LandService implements Listener {
         String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, false);
         if (worldRuleMessage != null) {
             player.sendMessage(worldRuleMessage);
+            return;
+        }
+        String spacingMessage = checkClaimSpacing(claim.worldName(), newBounds, claim.residenceName());
+        if (spacingMessage != null) {
+            player.sendMessage(spacingMessage);
             return;
         }
 
@@ -882,7 +896,7 @@ public final class LandService implements Listener {
         }
 
         Object residence = residenceHook.getByName(getResidenceManager(), check.internalName());
-        if (residence != null && plugin.getConfig().getBoolean("claims.set-teleport-on-create", true)) {
+        if (residence != null && plugin.pluginConfig().getBoolean("claims.set-teleport-on-create", true)) {
             residenceHook.setTeleportLocation(residence, admin, true);
         }
 
@@ -1125,6 +1139,37 @@ public final class LandService implements Listener {
         return settings.allowedWorlds().isEmpty() || settings.allowedWorlds().contains(worldName);
     }
 
+    private String checkClaimSpacing(String worldName, ChunkBounds bounds, String ignoredResidenceName) {
+        int spacing = settings.minClaimSpacingChunks();
+        if (spacing <= 0) {
+            return null;
+        }
+
+        String ignoredKey = ignoredResidenceName == null ? null : ignoredResidenceName.toLowerCase(Locale.ROOT);
+        for (ManagedClaim other : dataStore.allClaims()) {
+            if (!other.worldName().equals(worldName)) {
+                continue;
+            }
+            if (ignoredKey != null && other.residenceName().toLowerCase(Locale.ROOT).equals(ignoredKey)) {
+                continue;
+            }
+            if (isInsideExpandedBounds(bounds, other.bounds(), spacing)) {
+                return render(plugin.message("too-close-to-claim"), Map.of(
+                    "target", other.displayName(),
+                    "distance", Integer.toString(spacing)
+                ));
+            }
+        }
+        return null;
+    }
+
+    private boolean isInsideExpandedBounds(ChunkBounds candidate, ChunkBounds existing, int spacing) {
+        return candidate.maxChunkX() >= existing.minChunkX() - spacing
+            && candidate.minChunkX() <= existing.maxChunkX() + spacing
+            && candidate.maxChunkZ() >= existing.minChunkZ() - spacing
+            && candidate.minChunkZ() <= existing.maxChunkZ() + spacing;
+    }
+
     private String checkWorldClaimRule(String worldName, ChunkBounds bounds, boolean adminAction) {
         if (!isAllowedWorld(worldName)) {
             return plugin.message("world-not-allowed");
@@ -1249,6 +1294,10 @@ public final class LandService implements Listener {
         if (isInsideProtectedCenter(bounds)) {
             return CreateCheckResult.denied(plugin.message("inside-protected-center"));
         }
+        String spacingMessage = checkClaimSpacing(admin.getWorld().getName(), bounds, null);
+        if (spacingMessage != null) {
+            return CreateCheckResult.denied(spacingMessage);
+        }
 
         String finalDisplayName = normalizeRequestedDisplayName(owner, displayName);
         if (finalDisplayName == null) {
@@ -1288,6 +1337,10 @@ public final class LandService implements Listener {
         }
         if (isInsideProtectedCenter(newBounds)) {
             return ResizeCheckResult.denied(plugin.message("inside-protected-center"));
+        }
+        String spacingMessage = checkClaimSpacing(claim.worldName(), newBounds, claim.residenceName());
+        if (spacingMessage != null) {
+            return ResizeCheckResult.denied(spacingMessage);
         }
 
         World world = requireClaimWorld(player, claim);
@@ -1358,6 +1411,11 @@ public final class LandService implements Listener {
         String worldRuleMessage = checkWorldClaimRule(claim.worldName(), newBounds, true);
         if (worldRuleMessage != null) {
             actor.sendMessage(worldRuleMessage);
+            return;
+        }
+        String spacingMessage = checkClaimSpacing(claim.worldName(), newBounds, claim.residenceName());
+        if (spacingMessage != null) {
+            actor.sendMessage(spacingMessage);
             return;
         }
 

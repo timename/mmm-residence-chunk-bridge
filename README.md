@@ -1,6 +1,6 @@
-# mmmResidenceChunkBridge
+# mmm-residence-chunk-bridge
 
-`mmmResidenceChunkBridge` 是一个基于 `Residence` 的区块化领地桥接插件。
+`mmm-residence-chunk-bridge` 是一个基于 `Residence` 的区块化领地桥接插件。
 
 它不替代 Residence 的保护系统，而是把 Residence 的领地能力包装成更适合服务器使用的玩家流程：
 
@@ -48,7 +48,7 @@ mvn package
 构建产物位于：
 
 ```text
-target/mmmResidenceChunkBridge-版本号.jar
+target/mmm-residence-chunk-bridge-版本号.jar
 ```
 
 ## 部署
@@ -62,10 +62,10 @@ E:\MCserver\MMM\purpur1.21.10_Survival\plugins
 首次启动会生成：
 
 ```text
-plugins/mmmResidenceChunkBridge/config.yml
-plugins/mmmResidenceChunkBridge/lang/zh_CN.yml
-plugins/mmmResidenceChunkBridge/claims.yml
-plugins/mmmResidenceChunkBridge/operations.log
+plugins/MMMResidenceChunkBridge/config.yml
+plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
+plugins/MMMResidenceChunkBridge/claims.yml
+plugins/MMMResidenceChunkBridge/operations.log
 ```
 
 ## 玩家功能
@@ -194,7 +194,7 @@ GUI 中扩张会先显示预览，再输入 `确认` 执行。
 
 - 扩张后领地总区块数不超过 `25` 时，使用 Vault 金币
 - 扩张后总区块数超过 `25` 时，使用 MMMVaultSync 自管货币
-- 默认自管货币 ID 为 `mengmeng_crystal`，显示为萌萌水晶
+- 默认自管货币 ID 为 `mengmeng_shell`，显示为萌萌贝壳
 - 上限、货币 ID、显示名、单价都可以在 `config.yml` 调整
 
 ### 工具调整领地边界
@@ -357,6 +357,27 @@ mmmland.limit.8
 
 ## 主要配置
 
+### 存储配置
+
+```yml
+storage:
+  type: yaml
+  mysql:
+    jdbc-url: "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
+    username: "root"
+    password: ""
+    table-prefix: "mmm_land_"
+    migrate-from-yaml-if-empty: true
+```
+
+说明：
+
+- `storage.type: yaml`：继续使用 `plugins/MMMResidenceChunkBridge/claims.yml`。
+- `storage.type: mysql`：使用 MySQL 表保存托管领地元数据。
+- MySQL 数据库需要提前创建，插件会自动创建表。
+- `migrate-from-yaml-if-empty: true` 时，如果 MySQL 表为空，会自动从原 `claims.yml` 导入旧数据。
+- MySQL 表默认名为 `mmm_land_claims`。
+
 ### 世界限制
 
 ```yml
@@ -389,12 +410,15 @@ claims:
   full-height: true
   min-chunks: 1
   max-chunks-per-claim: 64
+  min-spacing-chunks: 1
   no-claim-radius-blocks: 0
   protected-center-x: 0
   protected-center-z: 0
   rectangular-only: true
   set-teleport-on-create: true
 ```
+
+`min-spacing-chunks` 控制任意两个托管领地之间至少保留多少个空区块。默认 `1` 表示两个领地不能贴边或贴角，中间至少要隔 1 个完整区块；设置为 `0` 表示关闭这个限制。
 
 ### 可视化选区
 
@@ -439,8 +463,8 @@ pricing:
       price-increase-per-chunk: 200
     custom-currency:
       enabled: true
-      id: "mengmeng_crystal"
-      display-name: "萌萌水晶"
+      id: "mengmeng_shell"
+      display-name: "萌萌贝壳"
   contract:
     refund-enabled: false
 ```
@@ -472,7 +496,7 @@ pricing:
 ### 语言文件
 
 ```text
-plugins/mmmResidenceChunkBridge/lang/zh_CN.yml
+plugins/MMMResidenceChunkBridge/lang/zh_CN.yml
 ```
 
 玩家提示、GUI 标题和帮助文本都在语言文件中维护。`config.yml` 只保留功能配置和价格配置。
@@ -554,6 +578,79 @@ visual:
 - 数据保存
 
 ## 更新记录
+
+### 0.17.1
+
+类型：Bug 修复与配置调整
+
+调整：
+
+- 扩张领地超过 `pricing.expand.vault-max-chunks` 后使用的自管货币改为 `mengmeng_shell`
+- 玩家显示名改为“萌萌贝壳”
+- 默认配置与 README 同步新的货币 ID
+
+### 0.17.0
+
+类型：功能新增
+
+新增：
+
+- 新增 `claims.min-spacing-chunks` 配置
+- 创建、扩建、缩小、工具调整边界和管理员调整都会检查领地间距
+- 默认要求任意两个托管领地之间至少间隔 1 个空区块
+
+说明：
+
+- 该检查基于插件托管领地缓存，不扫描世界方块
+- 当前正在调整的同一个领地会被排除
+
+### 0.16.0
+
+类型：功能新增
+
+新增：
+
+- `claims.yml` 托管领地数据支持切换为 MySQL 存储
+- 新增 `storage.type`，可选 `yaml` 或 `mysql`
+- MySQL 启动时自动创建托管领地表
+- MySQL 表为空时可自动从 `claims.yml` 导入旧数据
+- `plugin.yml` 增加 MySQL JDBC 驱动库声明
+
+保留：
+
+- 默认仍使用 `yaml`，不会影响现有服务器
+- 配置文件夹仍固定为 `plugins/MMMResidenceChunkBridge`
+
+### 0.15.5
+
+类型：Bug 修复与命名调整
+
+调整：
+
+- jar 文件名改为 `mmm-residence-chunk-bridge-版本号.jar`
+- jar 文件名和 Bukkit 插件名保持一致
+- 配置文件夹仍固定使用 `plugins/MMMResidenceChunkBridge`
+
+### 0.15.4
+
+类型：Bug 修复与命名调整
+
+调整：
+
+- 保持 Bukkit 插件名为 `mmm-residence-chunk-bridge`
+- 插件 jar 文件继续使用 `MMMResidenceChunkBridge-版本号.jar`
+- 插件配置文件夹固定使用 `plugins/MMMResidenceChunkBridge`
+- 插件内部配置、语言、claims 和日志读取全部改为固定数据目录，避免 Bukkit 默认按插件名生成连字符目录
+
+### 0.15.3
+
+类型：Bug 修复与命名调整
+
+调整：
+
+- Bukkit 插件名改为 `mmm-residence-chunk-bridge`
+- 构建 jar 名恢复为 `MMMResidenceChunkBridge-版本号.jar`
+- 启动时会尝试把旧数据目录 `plugins/mmmResidenceChunkBridge` 或 `plugins/MMMResidenceChunkBridge` 迁移为 `plugins/mmm-residence-chunk-bridge`
 
 ### 0.15.2
 

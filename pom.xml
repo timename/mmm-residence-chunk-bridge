@@ -5,7 +5,7 @@
 
     <groupId>local.mmm</groupId>
     <artifactId>mmm-residence-chunk-bridge</artifactId>
-    <version>0.15.2</version>
+    <version>0.17.1</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -87,7 +87,7 @@
     </dependencies>
 
     <build>
-        <finalName>mmmResidenceChunkBridge-${project.version}</finalName>
+        <finalName>mmm-residence-chunk-bridge-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

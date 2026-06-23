@@ -2,6 +2,8 @@ package local.mmm.residencechunk;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.logging.Level;
 import local.mmm.residencechunk.command.LandCommand;
@@ -13,9 +15,11 @@ import local.mmm.residencechunk.service.EconomyService;
 import local.mmm.residencechunk.service.GuiService;
 import local.mmm.residencechunk.service.LandDataStore;
 import local.mmm.residencechunk.service.LandService;
+import local.mmm.residencechunk.service.MysqlLandDataStore;
 import local.mmm.residencechunk.service.ResidenceHook;
 import local.mmm.residencechunk.service.SelectionService;
 import local.mmm.residencechunk.service.VisualService;
+import local.mmm.residencechunk.service.YamlLandDataStore;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
@@ -27,6 +31,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
 
+    private static final String DATA_FOLDER_NAME = "MMMResidenceChunkBridge";
+
+    private File customDataFolder;
+    private FileConfiguration config;
     private PluginSettings settings;
     private LandDataStore dataStore;
     private EconomyService economyService;
@@ -41,13 +49,13 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         migrateLegacyDataFolder();
-        saveDefaultConfig();
+        saveDefaultPluginConfig();
         saveLanguageFile();
-        reloadConfig();
+        reloadPluginConfigFile();
         applyConfigComments();
         reloadLanguage();
-        settings = PluginSettings.fromConfig(getConfig());
-        dataStore = new LandDataStore(new File(getDataFolder(), "claims.yml"));
+        settings = PluginSettings.fromConfig(pluginConfig());
+        dataStore = createDataStore(settings);
         dataStore.load();
 
         Economy vaultEconomy = setupEconomy();
@@ -79,25 +87,32 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(landService, this);
         Bukkit.getPluginManager().registerEvents(guiService, this);
         Bukkit.getPluginManager().registerEvents(selectionService, this);
-        getLogger().info("mmmResidenceChunkBridge enabled.");
+        getLogger().info("mmm-residence-chunk-bridge enabled.");
     }
 
     private void migrateLegacyDataFolder() {
-        File currentFolder = getDataFolder();
-        File parentFolder = currentFolder.getParentFile();
+        File targetFolder = pluginDataFolder();
+        File parentFolder = targetFolder.getParentFile();
         if (parentFolder == null) {
             return;
         }
 
-        File legacyFolder = new File(parentFolder, "MMMResidenceChunkBridge");
-        if (currentFolder.exists() || !legacyFolder.exists() || legacyFolder.equals(currentFolder)) {
+        if (targetFolder.exists()) {
             return;
         }
 
-        if (legacyFolder.renameTo(currentFolder)) {
-            getLogger().info("Migrated legacy data folder from MMMResidenceChunkBridge to mmmResidenceChunkBridge.");
-        } else {
-            getLogger().warning("Unable to migrate legacy data folder. Please rename plugins/MMMResidenceChunkBridge to plugins/mmmResidenceChunkBridge manually.");
+        for (String legacyName : List.of("mmm-residence-chunk-bridge", "mmmResidenceChunkBridge")) {
+            File legacyFolder = new File(parentFolder, legacyName);
+            if (!legacyFolder.exists() || legacyFolder.equals(targetFolder)) {
+                continue;
+            }
+            if (legacyFolder.renameTo(targetFolder)) {
+                getLogger().info("Migrated legacy data folder from " + legacyName + " to " + DATA_FOLDER_NAME + ".");
+            } else {
+                getLogger().warning("Unable to migrate legacy data folder. Please rename plugins/" + legacyName
+                    + " to plugins/" + DATA_FOLDER_NAME + " manually.");
+            }
+            return;
         }
     }
 
@@ -125,21 +140,47 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     }
 
     public void reloadPluginConfig() {
-        reloadConfig();
+        reloadPluginConfigFile();
         applyConfigComments();
         saveLanguageFile();
         reloadLanguage();
-        settings = PluginSettings.fromConfig(getConfig());
+        settings = PluginSettings.fromConfig(pluginConfig());
         if (landService != null) {
             landService.reloadSettings(settings);
             landService.syncResidenceMessages();
         }
     }
 
+    public File pluginDataFolder() {
+        if (customDataFolder == null) {
+            File defaultParent = getDataFolder().getParentFile();
+            customDataFolder = new File(defaultParent == null ? new File("plugins") : defaultParent, DATA_FOLDER_NAME);
+        }
+        return customDataFolder;
+    }
+
+    public FileConfiguration pluginConfig() {
+        if (config == null) {
+            reloadPluginConfigFile();
+        }
+        return config;
+    }
+
+    private LandDataStore createDataStore(PluginSettings settings) {
+        File claimsFile = new File(pluginDataFolder(), "claims.yml");
+        YamlLandDataStore yamlStore = new YamlLandDataStore(claimsFile);
+        if ("mysql".equalsIgnoreCase(settings.storageType())) {
+            getLogger().info("Using MySQL claim storage.");
+            return new MysqlLandDataStore(settings.mysqlStorage(), yamlStore);
+        }
+        getLogger().info("Using YAML claim storage.");
+        return yamlStore;
+    }
+
     public String message(String path) {
         String raw = language == null ? null : language.getString(path);
         if (raw == null) {
-            raw = getConfig().getString("messages." + path, path);
+            raw = pluginConfig().getString("messages." + path, path);
         }
         return color(Objects.requireNonNullElse(raw, path));
     }
@@ -147,7 +188,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     public java.util.List<String> messageList(String path) {
         java.util.List<String> raw = language == null ? java.util.List.of() : language.getStringList(path);
         if (raw.isEmpty()) {
-            raw = getConfig().getStringList("messages." + path);
+            raw = pluginConfig().getStringList("messages." + path);
         }
         return raw.stream().map(this::color).toList();
     }
@@ -156,25 +197,51 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         return input.replace('&', '\u00A7');
     }
 
+    private void saveDefaultPluginConfig() {
+        File configFile = new File(pluginDataFolder(), "config.yml");
+        if (!configFile.exists()) {
+            copyResource("config.yml", configFile);
+        }
+    }
+
+    private void reloadPluginConfigFile() {
+        config = YamlConfiguration.loadConfiguration(new File(pluginDataFolder(), "config.yml"));
+    }
+
     private void saveLanguageFile() {
-        File languageFile = new File(getDataFolder(), "lang/zh_CN.yml");
+        File languageFile = new File(pluginDataFolder(), "lang/zh_CN.yml");
         if (!languageFile.exists()) {
-            saveResource("lang/zh_CN.yml", false);
+            copyResource("lang/zh_CN.yml", languageFile);
         }
     }
 
     private void reloadLanguage() {
-        language = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "lang/zh_CN.yml"));
+        language = YamlConfiguration.loadConfiguration(new File(pluginDataFolder(), "lang/zh_CN.yml"));
     }
 
     private void applyConfigComments() {
-        ConfigComments.apply(getConfig());
+        ConfigComments.apply(pluginConfig());
         try {
-            getConfig().save(new File(getDataFolder(), "config.yml"));
+            pluginConfig().save(new File(pluginDataFolder(), "config.yml"));
         } catch (IOException exception) {
             getLogger().log(Level.WARNING, "Failed to save commented config.yml", exception);
         }
-        reloadConfig();
+        reloadPluginConfigFile();
+    }
+
+    private void copyResource(String resourcePath, File outputFile) {
+        File parentFile = outputFile.getParentFile();
+        if (parentFile != null && !parentFile.exists() && !parentFile.mkdirs()) {
+            throw new IllegalStateException("Unable to create directory " + parentFile.getAbsolutePath());
+        }
+        try (InputStream input = getResource(resourcePath)) {
+            if (input == null) {
+                throw new IllegalStateException("Missing embedded resource " + resourcePath);
+            }
+            java.nio.file.Files.copy(input, outputFile.toPath());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to save resource " + resourcePath, exception);
+        }
     }
 
     private Economy setupEconomy() {

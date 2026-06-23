@@ -1,5 +1,28 @@
-# mmmResidenceChunkBridge 功能配置
+# mmm-residence-chunk-bridge 功能配置
 # 语言文案已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
+
+# 托管领地元数据存储方式。
+# yaml：继续使用 plugins/MMMResidenceChunkBridge/claims.yml。
+# mysql：使用 MySQL 数据库存储，并可在数据库为空时自动导入 claims.yml。
+storage:
+  type: yaml
+
+  mysql:
+    # MySQL JDBC 连接地址。
+    # database 需要提前创建，插件会自动创建表。
+    jdbc-url: "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
+
+    # 数据库用户名。
+    username: "root"
+
+    # 数据库密码。
+    password: ""
+
+    # 数据表前缀，最终表名默认为 mmm_land_claims。
+    table-prefix: "mmm_land_"
+
+    # 当 MySQL 表为空时，是否自动从 claims.yml 导入旧数据。
+    migrate-from-yaml-if-empty: true
 
 # 允许玩家创建、扩建、调整领地的世界名列表。
 # 世界名必须和服务器实际世界文件夹/ Bukkit 世界名一致。
@@ -44,6 +67,10 @@ claims:
   # 单个领地最大区块总数。
   # 创建、扩建、工具调整边界都会检查这个上限。
   max-chunks-per-claim: 64
+
+  # 领地之间至少保留多少个空区块。
+  # 1 表示任意两个托管领地之间至少隔 1 个完整区块；0 表示不限制。
+  min-spacing-chunks: 1
 
   # 出生点/服务器中心保护半径，单位为方块。
   # 0 表示不启用中心保护。
@@ -202,10 +229,10 @@ pricing:
       enabled: true
 
       # MMMVaultSync 中注册的货币 ID。
-      id: "mengmeng_crystal"
+      id: "mengmeng_shell"
 
       # 自管货币显示名。
-      display-name: "萌萌水晶"
+      display-name: "萌萌贝壳"
 
   # 缩小领地价格策略。
   contract:

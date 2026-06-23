@@ -2,6 +2,7 @@ local\mmm\residencechunk\service\GuiService$MemberAction.class
 local\mmm\residencechunk\service\SelectionService.class
 local\mmm\residencechunk\service\GuiService$AmountHolder.class
 local\mmm\residencechunk\service\LandService$ExpandCost.class
+local\mmm\residencechunk\service\YamlLandDataStore.class
 local\mmm\residencechunk\service\ResidenceHook.class
 local\mmm\residencechunk\service\GuiService$DeleteConfirmHolder.class
 local\mmm\residencechunk\service\LandDataStore.class
@@ -24,6 +25,7 @@ local\mmm\residencechunk\service\GuiService$PendingMemberAction.class
 local\mmm\residencechunk\service\LandService.class
 local\mmm\residencechunk\config\PluginSettings$WorldClaimRule.class
 local\mmm\residencechunk\config\PluginSettings.class
+local\mmm\residencechunk\service\MysqlLandDataStore.class
 local\mmm\residencechunk\service\SelectionService$SelectionMode.class
 local\mmm\residencechunk\command\LandCommand.class
 local\mmm\residencechunk\service\GuiService.class
@@ -32,5 +34,6 @@ local\mmm\residencechunk\model\ManagedClaim.class
 local\mmm\residencechunk\service\GuiService$MemberHolder.class
 local\mmm\residencechunk\model\ChunkBounds.class
 local\mmm\residencechunk\service\GuiService$Mode.class
+local\mmm\residencechunk\config\PluginSettings$MysqlStorageSettings.class
 local\mmm\residencechunk\service\CustomCurrencyService.class
 local\mmm\residencechunk\service\GuiService$PendingTransform.class

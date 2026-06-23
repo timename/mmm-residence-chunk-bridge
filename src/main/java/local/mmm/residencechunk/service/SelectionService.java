@@ -239,7 +239,7 @@ public final class SelectionService implements Listener {
     }
 
     private void drawCurrentChunk(Player player) {
-        if (!plugin.getConfig().getBoolean("visual.current-chunk-enabled", true)) {
+        if (!plugin.pluginConfig().getBoolean("visual.current-chunk-enabled", true)) {
             return;
         }
         visualService.drawCurrentChunk(player);
