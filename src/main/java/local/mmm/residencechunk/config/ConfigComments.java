@@ -53,9 +53,9 @@ public final class ConfigComments {
             "领地最远处距离 X=0,Z=0 不能超过多少格。",
             "0 表示不限制最大距离。");
 
-        comment(config, "currency", "Vault 金币显示配置。");
+        comment(config, "currency", "服务器默认货币显示配置。");
         comment(config, "currency.display-name",
-            "Vault 金币显示名。",
+            "服务器默认货币显示名。",
             "这里只影响本插件提示，不会修改经济插件本身的货币名。");
 
         comment(config, "claims", "领地创建与形状规则。");
@@ -147,7 +147,7 @@ public final class ConfigComments {
             "key 是玩家的第几个领地，value 是价格。");
         comment(config, "pricing.expand", "扩建/工具调整边界新增区块价格。");
         comment(config, "pricing.expand.vault-max-chunks",
-            "扩建后领地总区块数不超过该值时，使用 Vault 金币收费。",
+            "扩建后领地总区块数不超过该值时，使用服务器默认货币收费。",
             "超过该值时，使用 custom-currency 中配置的自管货币收费。");
         comment(config, "pricing.expand.progressive",
             "递增扩建价格。",

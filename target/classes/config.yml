@@ -45,10 +45,10 @@ world-claim-rules:
       # 0 表示不限制最大距离。
       max-distance-from-origin-xz: 0
 
-# Vault 金币显示名。
+# 服务器默认货币显示名。
 # 这里只影响本插件提示，不会修改经济插件本身的货币名。
 currency:
-  display-name: "奶油币"
+  display-name: "萌萌币"
 
 # 领地创建与形状规则。
 claims:
@@ -209,7 +209,7 @@ pricing:
 
   # 扩建/工具调整边界新增区块价格。
   expand:
-    # 扩建后领地总区块数不超过该值时，使用 Vault 金币收费。
+    # 扩建后领地总区块数不超过该值时，使用服务器默认货币收费。
     # 超过该值时，使用 custom-currency 中配置的自管货币收费。
     vault-max-chunks: 25
 
