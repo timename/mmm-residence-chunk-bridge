@@ -51,7 +51,7 @@ public final class SelectionService implements Listener {
             player.sendMessage(plugin.message("select-wrong-world"));
             return;
         }
-        SelectionSession session = new SelectionSession(SelectionMode.RESIZE, claim.worldName(), claim.displayName(), claim.displayName());
+        SelectionSession session = new SelectionSession(SelectionMode.RESIZE, claim.worldName(), claim.displayName(), claim.residenceName());
         session.start(claim.bounds().minChunkX(), claim.bounds().minChunkZ());
         session.end(claim.bounds().maxChunkX(), claim.bounds().maxChunkZ());
         startSession(player, session);
@@ -164,7 +164,11 @@ public final class SelectionService implements Listener {
                 .replace("%x%", Integer.toString(chunkX))
                 .replace("%z%", Integer.toString(chunkZ)));
         }
-        refreshSessionCheck(player, session);
+        if (session.mode() == SelectionMode.RESIZE) {
+            refreshResizeCheck(player, session);
+        } else {
+            refreshSessionCheck(player, session);
+        }
         sendSelectionSummary(player, session);
     }
 
@@ -300,15 +304,15 @@ public final class SelectionService implements Listener {
             check = refreshResizeCheck(player, session);
         }
         String message = plugin.message(check.allowed() ? "resize-select-summary" : "resize-select-summary-invalid")
-            .replace("%name%", session.claimName())
+            .replace("%name%", session.displayName())
             .replace("%chunks%", Integer.toString(bounds.area()))
             .replace("%minX%", Integer.toString(bounds.minChunkX()))
             .replace("%minZ%", Integer.toString(bounds.minChunkZ()))
             .replace("%maxX%", Integer.toString(bounds.maxChunkX()))
             .replace("%maxZ%", Integer.toString(bounds.maxChunkZ()))
             .replace("%delta%", Integer.toString(check.deltaChunks()))
-            .replace("%price%", formatPrice(check.price()))
-            .replace("%currency%", check.currencyDisplayName());
+            .replace("%price%", check.summary())
+            .replace("%currency%", "");
         player.sendMessage(message);
         if (!check.allowed() && check.message() != null && !check.message().isBlank()) {
             player.sendMessage(check.message());

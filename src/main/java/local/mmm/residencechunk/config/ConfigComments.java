@@ -92,10 +92,14 @@ public final class ConfigComments {
             "普通领地边界预览刷新间隔，数值越小越明显，但粒子开销越高。");
         comment(config, "visual.preview-step-blocks", "普通边界每隔多少方块生成一组粒子。");
         comment(config, "visual.preview-corner-height", "普通边界四角向上显示的高度，单位方块。");
+        comment(config, "visual.preview-vertical-levels", "普通边界额外显示多少层水平边框，用于增强 Y 轴方向可见度。");
+        comment(config, "visual.preview-vertical-step-blocks", "普通边界多层水平边框之间的高度间隔，单位方块。");
         comment(config, "visual.preview-dust-size", "普通边界红石尘粒子大小。");
         comment(config, "visual.selection", "玩家手动选择出来的矩形范围预览样式。");
         comment(config, "visual.selection.step-blocks", "选区边界每隔多少方块生成一组粒子。");
         comment(config, "visual.selection.corner-height", "选区四角向上显示的高度，单位方块。");
+        comment(config, "visual.selection.vertical-levels", "选区边界水平边框显示层数。");
+        comment(config, "visual.selection.vertical-step-blocks", "选区边界多层水平边框之间的高度间隔，单位方块。");
         comment(config, "visual.selection.dust-size", "选区红石尘粒子大小。");
         comment(config, "visual.selection.accent-enabled", "是否额外叠加发光感更强的强调粒子。");
         comment(config, "visual.selection.accent-particle",
@@ -107,6 +111,8 @@ public final class ConfigComments {
             "当前区块颜色，格式为 \"红,绿,蓝\"，取值 0-255。");
         comment(config, "visual.current-chunk.step-blocks", "当前区块边界每隔多少方块生成一组粒子。");
         comment(config, "visual.current-chunk.corner-height", "当前区块四角向上显示的高度，单位方块。");
+        comment(config, "visual.current-chunk.vertical-levels", "当前区块水平边框显示层数。");
+        comment(config, "visual.current-chunk.vertical-step-blocks", "当前区块多层水平边框之间的高度间隔，单位方块。");
         comment(config, "visual.current-chunk.dust-size", "当前区块红石尘粒子大小。");
         comment(config, "visual.current-chunk.accent-enabled", "是否叠加强调粒子。");
         comment(config, "visual.current-chunk.accent-particle", "当前区块强调粒子类型。");
@@ -114,7 +120,7 @@ public final class ConfigComments {
         comment(config, "selection", "手动圈地工具配置。");
         comment(config, "selection.tool",
             "用于左键/右键选择区块的物品材质名。",
-            "必须是 Bukkit Material 名称，例如 GOLDEN_SHOVEL、WOODEN_HOE。");
+            "必须是 Bukkit Material 名称，例如 WOODEN_SHOVEL、WOODEN_HOE。");
         comment(config, "selection.require-tool", "是否要求玩家必须手持上面的工具才能选择区块。");
         comment(config, "selection.timeout-seconds", "选区会话超时时间，单位秒。");
         comment(config, "selection.preview-period-ticks", "选区预览刷新间隔，单位 tick。");

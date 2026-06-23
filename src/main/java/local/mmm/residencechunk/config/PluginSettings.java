@@ -32,6 +32,8 @@ public record PluginSettings(
     double expandBasePrice,
     double expandPriceIncreasePerChunk,
     int expandVaultMaxChunks,
+    double expandCustomBasePrice,
+    double expandCustomPriceIncreasePerChunk,
     boolean expandCustomCurrencyEnabled,
     String expandCustomCurrencyId,
     String expandCustomCurrencyDisplayName,
@@ -105,11 +107,13 @@ public record PluginSettings(
         int legacyVaultMaxWidth = Math.max(1, config.getInt("pricing.expand.vault-max-width", 5));
         int legacyVaultMaxDepth = Math.max(1, config.getInt("pricing.expand.vault-max-depth", 5));
         int expandVaultMaxChunks = Math.max(1, config.getInt("pricing.expand.vault-max-chunks", legacyVaultMaxWidth * legacyVaultMaxDepth));
+        double expandCustomBasePrice = Math.max(0D, config.getDouble("pricing.expand.custom-currency.progressive.base-price", 10D));
+        double expandCustomPriceIncreasePerChunk = Math.max(0D, config.getDouble("pricing.expand.custom-currency.progressive.price-increase-per-chunk", 10D));
         boolean expandCustomCurrencyEnabled = config.getBoolean("pricing.expand.custom-currency.enabled", true);
         String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "mengmeng_shell");
         String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "萌萌贝壳");
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
-        String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");
+        String selectionTool = config.getString("selection.tool", "WOODEN_SHOVEL");
         boolean selectionRequireTool = config.getBoolean("selection.require-tool", true);
         int selectionTimeoutSeconds = Math.max(15, config.getInt("selection.timeout-seconds", 120));
         int selectionPreviewPeriodTicks = Math.max(2, config.getInt("selection.preview-period-ticks", 10));
@@ -146,6 +150,8 @@ public record PluginSettings(
             expandBasePrice,
             expandPriceIncreasePerChunk,
             expandVaultMaxChunks,
+            expandCustomBasePrice,
+            expandCustomPriceIncreasePerChunk,
             expandCustomCurrencyEnabled,
             expandCustomCurrencyId,
             expandCustomCurrencyDisplayName,

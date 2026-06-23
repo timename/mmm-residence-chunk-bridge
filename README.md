@@ -108,7 +108,7 @@ plugins/MMMResidenceChunkBridge/operations.log
 
 默认流程：
 
-1. 手持 `GOLDEN_SHOVEL`
+1. 手持 `WOODEN_SHOVEL`
 2. 左键方块选择起点区块
 3. 右键方块选择终点区块
 4. 粒子显示矩形边界
@@ -432,7 +432,7 @@ visual:
   current-chunk-enabled: true
 
 selection:
-  tool: GOLDEN_SHOVEL
+  tool: WOODEN_SHOVEL
   require-tool: true
   timeout-seconds: 120
   preview-period-ticks: 10
@@ -457,7 +457,7 @@ pricing:
       3: 2000
       4: 4000
   expand:
-    vault-max-chunks: 25
+    vault-max-chunks: 16
     progressive:
       base-price: 500
       price-increase-per-chunk: 200
@@ -579,6 +579,37 @@ visual:
 
 ## 更新记录
 
+### 0.19.0
+
+类型：功能新增与视觉优化
+
+调整：
+
+- 领地边界粒子预览新增多层 Y 轴水平边框显示，边界不再只显示玩家脚下单层 Y 轴
+- 新增 `visual.preview-vertical-levels` 和 `visual.preview-vertical-step-blocks` 默认配置
+- 新增 `visual.selection.vertical-levels`、`visual.selection.vertical-step-blocks` 控制手动选区边界层数
+- 新增 `visual.current-chunk.vertical-levels`、`visual.current-chunk.vertical-step-blocks` 控制当前区块提示层数
+### 0.18.0
+
+类型：功能新增与计费规则调整
+
+调整：
+
+- 扩建和工具调整边界支持同一次操作拆分显示多种货币费用
+- 默认萌萌币只支付到第 16 个扩建区块，超过后改用 `mengmeng_shell`（萌萌贝壳）
+- 萌萌贝壳默认递增消耗为第 1 个区块 10、第 2 个 20、第 3 个 30，以此类推
+- 新增 `pricing.expand.custom-currency.progressive.base-price` 和 `price-increase-per-chunk` 配置
+- 扩建预览、确认、成功和余额不足提示会显示完整费用摘要，例如 `萌萌币 + 萌萌贝壳`
+### 0.17.4
+
+类型：Bug 修复与配置调整
+
+调整：
+
+- 修复工具调整领地边界时错误复用创建选区校验，导致多余显示“已有同名领地”等提示的问题
+- 修复工具调整边界预览时费用和面积变化显示不稳定的问题
+- 工具调整边界会稳定使用 Residence 内部领地名执行，界面提示继续显示玩家领地名
+- 默认圈地工具从 `GOLDEN_SHOVEL` 改为 `WOODEN_SHOVEL`，并同步菜单图标与配置说明
 ### 0.17.3
 
 类型：Bug 修复与配置调整
@@ -874,8 +905,8 @@ visual:
 
 调整：
 
-- 扩张领地超过金币区块上限后的自管货币改为 MMMVaultSync 的 `mengmeng_crystal`
-- 玩家显示名改为“萌萌水晶”
+- 扩张领地超过金币区块上限后的自管货币改为 MMMVaultSync 的 `mengmeng_shell`
+- 玩家显示名改为“萌萌贝壳”
 - 默认配置和运行服配置同步更新
 
 ### 0.7.0
@@ -908,7 +939,7 @@ visual:
 调整：
 
 - 金币扩建上限从宽深判断改为总区块数判断
-- 默认 `pricing.expand.vault-max-chunks` 为 `25`
+- 默认 `pricing.expand.vault-max-chunks` 为 `16`
 - 扩建后总区块数不超过 `25` 时使用服务器默认货币，超过后使用 MMMVaultSync 自管货币
 - GUI 价格说明改为显示总区块数阈值
 - 创建、扩张、缩小前显式校验领地边界必须是有效矩形

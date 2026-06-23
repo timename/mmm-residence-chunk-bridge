@@ -248,8 +248,8 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (cost.price() > 0 && !hasFunds(player, cost)) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), cost.price(), cost.currencyDisplayName()));
+        if (!hasFunds(player, cost)) {
+            player.sendMessage(costMessage(plugin.message("insufficient-funds"), cost));
             return;
         }
 
@@ -272,8 +272,8 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (cost.price() > 0 && !withdrawFunds(player, cost, "mmm-land-expand:" + claim.residenceName())) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), cost.price(), cost.currencyDisplayName()));
+        if (!withdrawFunds(player, cost, "mmm-land-expand:" + claim.residenceName())) {
+            player.sendMessage(costMessage(plugin.message("insufficient-funds"), cost));
             return;
         }
 
@@ -295,15 +295,13 @@ public final class LandService implements Listener {
         dataStore.put(updatedClaim);
         dataStore.save();
 
-        player.sendMessage(money(
+        player.sendMessage(costMessage(
             plugin.message("expand-success"),
             Map.of("name", updatedClaim.displayName(), "delta", Integer.toString(deltaChunks)),
-            cost.price(),
-            cost.currencyDisplayName()
+            cost
         ));
         auditLogService.log(player, "EXPAND", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
-            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area() + " price=" + formatAmount(cost.price())
-            + " currency=" + cost.currencyDisplayName());
+            + " delta=" + deltaChunks + " chunks=" + updatedClaim.bounds().area() + " cost=" + cost.summary());
     }
 
     public void contractClaim(Player player, String residenceName, String directionInput, String amountInput) {
@@ -402,8 +400,8 @@ public final class LandService implements Listener {
             }
             return;
         }
-        if (check.price() > 0 && !withdrawFunds(player, check.cost(), "mmm-land-resize:" + claim.residenceName())) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), check.price(), check.currencyDisplayName()));
+        if (!withdrawFunds(player, check.cost(), "mmm-land-resize:" + claim.residenceName())) {
+            player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
             return;
         }
         boolean updated = residenceHook.replaceArea(check.residence(), player, check.area(), MAIN_AREA, true);
@@ -423,14 +421,14 @@ public final class LandService implements Listener {
         );
         dataStore.put(updatedClaim);
         dataStore.save();
-        player.sendMessage(money(plugin.message("resize-success"), Map.of(
+        player.sendMessage(costMessage(plugin.message("resize-success"), Map.of(
             "name", updatedClaim.displayName(),
             "delta", Integer.toString(check.deltaChunks()),
             "chunks", Integer.toString(updatedClaim.bounds().area())
-        ), check.price(), check.currencyDisplayName()));
+        ), check.cost()));
         auditLogService.log(player, "RESIZE", "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName()
             + " delta=" + check.deltaChunks() + " chunks=" + updatedClaim.bounds().area()
-            + " price=" + formatAmount(check.price()) + " currency=" + check.currencyDisplayName());
+            + " cost=" + check.cost().summary());
     }
 
     public void deleteClaim(Player player, String residenceName) {
@@ -1012,16 +1010,11 @@ public final class LandService implements Listener {
     public ExpandCost previewExpandCost(ManagedClaim claim, String directionInput, int amount) {
         Direction direction = Direction.parse(directionInput);
         if (direction == null || amount <= 0) {
-            return new ExpandCost(claim.bounds(), 0, 0D, economyService.currencyDisplayName(), false);
+            return calculateExpandCost(claim.bounds(), claim.bounds());
         }
         ChunkBounds newBounds = claim.bounds().expand(direction, amount);
-        int deltaChunks = Math.max(0, newBounds.area() - claim.bounds().area());
-        boolean customCurrency = requiresCustomCurrency(newBounds);
-        double price = calculateExpansionPrice(claim.bounds().area(), deltaChunks);
-        String currency = customCurrency
-            ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
-            : economyService.currencyDisplayName();
-        return new ExpandCost(newBounds, deltaChunks, price, currency, customCurrency);
+        return calculateExpandCost(claim.bounds(), newBounds);
+
     }
 
     public ResizeCheckResult previewResizeCost(Player player, String residenceName, ChunkBounds newBounds) {
@@ -1359,23 +1352,13 @@ public final class LandService implements Listener {
         }
 
         int deltaChunks = newBounds.area() - claim.bounds().area();
-        double price = 0D;
-        String currency = economyService.currencyDisplayName();
-        boolean customCurrency = false;
-        if (deltaChunks > 0) {
-            customCurrency = requiresCustomCurrency(newBounds);
-            price = calculateExpansionPrice(claim.bounds().area(), deltaChunks);
-            currency = customCurrency
-                ? customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
-                : economyService.currencyDisplayName();
-        }
-        ExpandCost cost = new ExpandCost(newBounds, Math.max(0, deltaChunks), price, currency, customCurrency);
+        ExpandCost cost = calculateExpandCost(claim.bounds(), newBounds);
         String availabilityMessage = checkCurrencyAvailability(cost);
         if (availabilityMessage != null) {
             return ResizeCheckResult.denied(availabilityMessage);
         }
-        if (price > 0 && !hasFunds(player, cost)) {
-            return ResizeCheckResult.denied(money(plugin.message("insufficient-funds"), price, currency));
+        if (!hasFunds(player, cost)) {
+            return ResizeCheckResult.denied(costMessage(plugin.message("insufficient-funds"), cost));
         }
         return ResizeCheckResult.allowed(newBounds, area, residence, deltaChunks, cost);
     }
@@ -1501,7 +1484,7 @@ public final class LandService implements Listener {
     }
 
     private String checkCurrencyAvailability(ExpandCost cost) {
-        if (!cost.customCurrency()) {
+        if (cost.customPrice() <= 0D) {
             return null;
         }
         if (!settings.expandCustomCurrencyEnabled()) {
@@ -1509,37 +1492,57 @@ public final class LandService implements Listener {
         }
         if (!customCurrencyService.isAvailable(settings.expandCustomCurrencyId())) {
             return render(plugin.message("custom-currency-unavailable"), Map.of(
-                "currency", cost.currencyDisplayName(),
+                "currency", cost.customCurrencyDisplayName(),
                 "currencyId", settings.expandCustomCurrencyId()
-            ), cost.currencyDisplayName());
+            ), cost.customCurrencyDisplayName());
         }
         return null;
     }
 
-    private double calculateExpansionPrice(int currentArea, int deltaChunks) {
+    private ExpandCost calculateExpandCost(ChunkBounds currentBounds, ChunkBounds newBounds) {
+        int currentArea = currentBounds.area();
+        int targetArea = newBounds.area();
+        int deltaChunks = Math.max(0, targetArea - currentArea);
+        String defaultCurrency = economyService.currencyDisplayName();
+        String customCurrency = customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName());
         if (deltaChunks <= 0) {
-            return 0D;
+            return new ExpandCost(newBounds, 0, 0D, 0D, defaultCurrency, customCurrency);
         }
-        int paidChunksBefore = Math.max(0, currentArea - settings.minChunks());
-        double total = 0D;
+        int currentPaidArea = Math.max(0, currentArea - settings.minChunks());
+        double defaultPrice = 0D;
+        double customPrice = 0D;
         for (int i = 0; i < deltaChunks; i++) {
-            total += settings.expandBasePrice() + ((paidChunksBefore + i) * settings.expandPriceIncreasePerChunk());
+            int chunkIndex = currentPaidArea + i + 1;
+            double chunkPrice = settings.expandBasePrice() + ((currentPaidArea + i) * settings.expandPriceIncreasePerChunk());
+            if (chunkIndex <= settings.expandVaultMaxChunks()) {
+                defaultPrice += chunkPrice;
+            } else {
+                int customIndex = chunkIndex - settings.expandVaultMaxChunks();
+                customPrice += settings.expandCustomBasePrice() + ((customIndex - 1D) * settings.expandCustomPriceIncreasePerChunk());
+            }
         }
-        return total;
+        return new ExpandCost(newBounds, deltaChunks, defaultPrice, customPrice, defaultCurrency, customCurrency);
     }
 
     private boolean hasFunds(Player player, ExpandCost cost) {
-        if (cost.customCurrency()) {
-            return customCurrencyService.has(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price());
+        if (cost.defaultPrice() > 0D && !economyService.has(player.getUniqueId(), cost.defaultPrice())) {
+            return false;
         }
-        return economyService.has(player.getUniqueId(), cost.price());
+        if (cost.customPrice() > 0D && !customCurrencyService.has(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice())) {
+            return false;
+        }
+        return true;
     }
 
     private boolean withdrawFunds(Player player, ExpandCost cost, String reason) {
-        if (cost.customCurrency()) {
-            return customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.price(), reason);
+        boolean ok = true;
+        if (cost.defaultPrice() > 0D) {
+            ok = economyService.withdraw(player.getUniqueId(), cost.defaultPrice()) && ok;
         }
-        return economyService.withdraw(player.getUniqueId(), cost.price());
+        if (cost.customPrice() > 0D) {
+            ok = customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason) && ok;
+        }
+        return ok;
     }
 
     private boolean applyResidencePlayerFlag(ManagedClaim claim, String targetName, String flag, String state) {
@@ -1709,7 +1712,15 @@ public final class LandService implements Listener {
         return money(message, Map.of(), amount, currencyDisplayName);
     }
 
-    private String formatAmount(double amount) {
+    private String costMessage(String message, ExpandCost cost) {
+        return costMessage(message, Map.of(), cost);
+    }
+
+    private String costMessage(String message, Map<String, String> replacements, ExpandCost cost) {
+        return render(message, replacements, "").replace("%price%", cost.summary()).replace("  ", " ").trim();
+    }
+
+    private static String formatAmount(double amount) {
         if (Math.floor(amount) == amount) {
             return Long.toString((long) amount);
         }
@@ -1737,10 +1748,39 @@ public final class LandService implements Listener {
     public record ExpandCost(
         ChunkBounds bounds,
         int deltaChunks,
-        double price,
-        String currencyDisplayName,
-        boolean customCurrency
+        double defaultPrice,
+        double customPrice,
+        String defaultCurrencyDisplayName,
+        String customCurrencyDisplayName
     ) {
+        public double price() {
+            return defaultPrice + customPrice;
+        }
+
+        public boolean hasCost() {
+            return price() > 0D;
+        }
+
+        public String currencyDisplayName() {
+            if (defaultPrice > 0D && customPrice > 0D) {
+                return defaultCurrencyDisplayName + " + " + customCurrencyDisplayName;
+            }
+            if (defaultPrice > 0D) {
+                return defaultCurrencyDisplayName;
+            }
+            return customCurrencyDisplayName;
+        }
+
+        public String summary() {
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            if (defaultPrice > 0D) {
+                parts.add(formatAmount(defaultPrice) + " " + defaultCurrencyDisplayName);
+            }
+            if (customPrice > 0D) {
+                parts.add(formatAmount(customPrice) + " " + customCurrencyDisplayName);
+            }
+            return String.join(" + ", parts);
+        }
     }
 
     public record ResizeCheckResult(
@@ -1766,6 +1806,10 @@ public final class LandService implements Listener {
 
         public String currencyDisplayName() {
             return cost == null ? "" : cost.currencyDisplayName();
+        }
+
+        public String summary() {
+            return cost == null ? "" : cost.summary();
         }
     }
 

@@ -103,6 +103,12 @@ visual:
   # 普通边界四角向上显示的高度，单位方块。
   preview-corner-height: 8
 
+  # 普通边界额外显示多少层水平边框，用于增强 Y 轴方向可见度。
+  preview-vertical-levels: 3
+
+  # 多层水平边框之间的高度间隔，单位方块。
+  preview-vertical-step-blocks: 2
+
   # 普通边界红石尘粒子大小。
   preview-dust-size: 1.6
 
@@ -113,6 +119,12 @@ visual:
 
     # 选区四角向上显示的高度，单位方块。
     corner-height: 8
+
+    # 选区边界水平边框显示层数。
+    vertical-levels: 4
+
+    # 选区边界多层水平边框之间的高度间隔，单位方块。
+    vertical-step-blocks: 2
 
     # 选区红石尘粒子大小。
     dust-size: 1.6
@@ -138,6 +150,12 @@ visual:
     # 当前区块四角向上显示的高度，单位方块。
     corner-height: 4
 
+    # 当前区块水平边框显示层数。
+    vertical-levels: 2
+
+    # 当前区块多层水平边框之间的高度间隔，单位方块。
+    vertical-step-blocks: 2
+
     # 当前区块红石尘粒子大小。
     dust-size: 1.1
 
@@ -150,8 +168,8 @@ visual:
 # 手动圈地工具配置。
 selection:
   # 用于左键/右键选择区块的物品材质名。
-  # 必须是 Bukkit Material 名称，例如 GOLDEN_SHOVEL、WOODEN_HOE。
-  tool: GOLDEN_SHOVEL
+  # 必须是 Bukkit Material 名称，例如 WOODEN_SHOVEL、WOODEN_HOE。
+  tool: WOODEN_SHOVEL
 
   # 是否要求玩家必须手持上面的工具才能选择区块。
   require-tool: true
@@ -211,7 +229,7 @@ pricing:
   expand:
     # 扩建后领地总区块数不超过该值时，使用服务器默认货币收费。
     # 超过该值时，使用 custom-currency 中配置的自管货币收费。
-    vault-max-chunks: 25
+    vault-max-chunks: 16
 
     # 递增扩建价格。
     # 默认规则：第 1 个扩建区块 500，第 2 个 700，第 3 个 900。
@@ -233,6 +251,11 @@ pricing:
 
       # 自管货币显示名。
       display-name: "萌萌贝壳"
+      # 自管货币递增价格。
+      # 默认规则：超出萌萌币上限后的第 1 个区块 10，第 2 个 20，第 3 个 30。
+      progressive:
+        base-price: 10
+        price-increase-per-chunk: 10
 
   # 缩小领地价格策略。
   contract:

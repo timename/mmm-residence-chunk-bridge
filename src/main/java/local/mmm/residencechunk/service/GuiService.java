@@ -66,7 +66,7 @@ public final class GuiService implements Listener {
             "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
             "&b点击后关闭菜单并显示高亮边界",
             "&b随后在聊天栏输入“确认”完成创建"));
-        inventory.setItem(22, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
+        inventory.setItem(22, createItem(Material.WOODEN_SHOVEL, "&a可视化选区圈地",
             "&7手持配置工具后选择区块",
             "&7左键方块选择起点区块",
             "&7右键方块选择终点区块",
@@ -127,7 +127,7 @@ public final class GuiService implements Listener {
             "&7会把当前位置设为领地传送点"));
 
         inventory.setItem(28, actionItem(Material.ENDER_EYE, "&b预览边界", "preview::" + claim.displayName()));
-        inventory.setItem(29, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
+        inventory.setItem(29, actionItem(Material.WOODEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
             "&7使用圈地工具重新选择矩形边界",
             "&7新增区块会按扩建规则收费"));
         inventory.setItem(30, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
@@ -199,7 +199,7 @@ public final class GuiService implements Listener {
             Material material = mode == Mode.EXPAND ? Material.GREEN_STAINED_GLASS : Material.ORANGE_STAINED_GLASS;
             LandService.ExpandCost cost = landService.previewExpandCost(claim, direction, amount);
             String lore = mode == Mode.EXPAND
-                ? "&7预计费用: &e" + formatPrice(cost.price()) + " " + cost.currencyDisplayName()
+                ? "&7预计费用: &e" + cost.summary()
                 : "&7本操作不会返还货币";
             inventory.setItem(20 + (i * 2), actionItem(material, "&f" + amount + " 个区块",
                 "apply:" + mode.name().toLowerCase(Locale.ROOT) + ":" + direction + ":" + claim.displayName() + ":" + amount, lore));
@@ -544,8 +544,8 @@ public final class GuiService implements Listener {
         player.sendMessage(plugin.message(messagePath)
             .replace("%name%", claim.displayName())
             .replace("%delta%", Integer.toString(delta))
-            .replace("%price%", formatPrice(expandCost == null ? delta * landService.getExpandPricePerChunk() : expandCost.price()))
-            .replace("%currency%", expandCost == null ? plugin.settings().currencyDisplayName() : expandCost.currencyDisplayName()));
+            .replace("%price%", (expandCost == null ? formatPrice(delta * landService.getExpandPricePerChunk()) + " " + plugin.settings().currencyDisplayName() : expandCost.summary()))
+            .replace("%currency%", ""));
         player.sendMessage(plugin.message("transform-confirm-instruction"));
     }
 
