@@ -48,11 +48,24 @@ public record PluginSettings(
 
     public static PluginSettings fromConfig(FileConfiguration config) {
         String storageType = config.getString("storage.type", "yaml").toLowerCase();
+        String mysqlHost = config.getString("storage.mysql.host", "127.0.0.1");
+        int mysqlPort = Math.max(1, config.getInt("storage.mysql.port", 3306));
+        String mysqlDatabase = config.getString("storage.mysql.database", "minecraft");
+        String mysqlJdbcUrlOverride = config.getString("storage.mysql.jdbc-url-override", "");
+        String legacyJdbcUrl = config.getString("storage.mysql.jdbc-url", "");
+        String mysqlJdbcUrl = !isBlank(mysqlJdbcUrlOverride)
+            ? mysqlJdbcUrlOverride
+            : (!isBlank(legacyJdbcUrl) ? legacyJdbcUrl : buildMysqlJdbcUrl(mysqlHost, mysqlPort, mysqlDatabase));
+        String legacyTablePrefix = config.getString("storage.mysql.table-prefix", "mmm_land_");
+        String mysqlTable = config.getString("storage.mysql.table", legacyTablePrefix + "claims");
         MysqlStorageSettings mysqlStorage = new MysqlStorageSettings(
-            config.getString("storage.mysql.jdbc-url", "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"),
+            mysqlJdbcUrl,
+            mysqlHost,
+            mysqlPort,
+            mysqlDatabase,
             config.getString("storage.mysql.username", "root"),
             config.getString("storage.mysql.password", ""),
-            config.getString("storage.mysql.table-prefix", "mmm_land_"),
+            mysqlTable,
             config.getBoolean("storage.mysql.migrate-from-yaml-if-empty", true)
         );
         Set<String> allowedWorlds = new HashSet<>(config.getStringList("allowed-worlds"));
@@ -165,6 +178,15 @@ public record PluginSettings(
         );
     }
 
+    private static String buildMysqlJdbcUrl(String host, int port, String database) {
+        return "jdbc:mysql://" + host + ":" + port + "/" + database
+            + "?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai";
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     public record WorldClaimRule(
         int minDistanceFromOriginXz,
         int maxDistanceFromOriginXz
@@ -173,9 +195,12 @@ public record PluginSettings(
 
     public record MysqlStorageSettings(
         String jdbcUrl,
+        String host,
+        int port,
+        String database,
         String username,
         String password,
-        String tablePrefix,
+        String table,
         boolean migrateFromYamlIfEmpty
     ) {
     }

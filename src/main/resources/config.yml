@@ -1,5 +1,5 @@
 # mmm-residence-chunk-bridge 功能配置
-# 语言文案已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
+# 语言文档已独立到 lang/zh_CN.yml；本文件只放可调功能参数。
 
 # 托管领地元数据存储方式。
 # yaml：继续使用 plugins/MMMResidenceChunkBridge/claims.yml。
@@ -8,24 +8,32 @@ storage:
   type: yaml
 
   mysql:
-    # MySQL JDBC 连接地址。
-    # database 需要提前创建，插件会自动创建表。
-    jdbc-url: "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
+    # MySQL 地址。
+    host: 127.0.0.1
+
+    # MySQL 端口。
+    port: 3306
+
+    # 数据库名。数据库需要提前创建，插件会自动创建下面配置的表。
+    database: minecraft
 
     # 数据库用户名。
-    username: "root"
+    username: root
 
     # 数据库密码。
-    password: ""
+    password: "MC.123MYSQL"
 
-    # 数据表前缀，最终表名默认为 mmm_land_claims。
-    table-prefix: "mmm_land_"
+    # 插件会自动创建这个表，无需手动建表。
+    table: mmm_land_claims
+
+    # 高级选项：不为空时优先使用该完整 JDBC URL，host/port/database 会被忽略。
+    jdbc-url-override: ""
 
     # 当 MySQL 表为空时，是否自动从 claims.yml 导入旧数据。
     migrate-from-yaml-if-empty: true
 
 # 允许玩家创建、扩建、调整领地的世界名列表。
-# 世界名必须和服务器实际世界文件夹/ Bukkit 世界名一致。
+# 世界名必须和服务器实际世界文件夹 / Bukkit 世界名一致。
 allowed-worlds:
   - world
 

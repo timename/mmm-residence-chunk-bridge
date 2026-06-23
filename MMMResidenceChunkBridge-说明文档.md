@@ -460,7 +460,7 @@ mmmland.limit.8
 当前版本：
 
 ```text
-0.19.0
+0.20.0
 ```
 
 版本规则：
@@ -469,12 +469,12 @@ mmmland.limit.8
 - `y`：功能新增
 - `z`：Bug 修复
 
-当前 `0.19.0` 属于功能新增与视觉优化版本，主要调整了：
+当前 `0.20.0` 属于功能新增与配置体验优化版本，主要调整了：
 
-- 领地边界粒子预览新增多层 Y 轴水平边框显示
-- 手动选区、当前区块提示和普通边界预览均可分别配置显示层数和层间距
-- 默认手动选区显示 4 层水平边框，当前区块显示 2 层水平边框
-- 保留 Residence、Vault、MMMVaultSync 的核心集成
+- MySQL 配置改为 `host`、`port`、`database`、`username`、`password`、`table` 的直观结构
+- 保留 `jdbc-url-override`，需要完整 JDBC URL 时仍可覆盖自动拼接结果
+- 兼容读取旧版 `storage.mysql.jdbc-url` 和 `storage.mysql.table-prefix`
+- 继续保留 Residence、Vault、MMMVaultSync 的核心集成
 ## 11. 当前实现的优点
 
 - 底层继续依赖成熟的 `Residence`

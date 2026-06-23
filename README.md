@@ -363,10 +363,13 @@ mmmland.limit.8
 storage:
   type: yaml
   mysql:
-    jdbc-url: "jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
-    username: "root"
-    password: ""
-    table-prefix: "mmm_land_"
+    host: 127.0.0.1
+    port: 3306
+    database: minecraft
+    username: root
+    password: "MC.123MYSQL"
+    table: mmm_land_claims
+    jdbc-url-override: ""
     migrate-from-yaml-if-empty: true
 ```
 
@@ -376,7 +379,7 @@ storage:
 - `storage.type: mysql`：使用 MySQL 表保存托管领地元数据。
 - MySQL 数据库需要提前创建，插件会自动创建表。
 - `migrate-from-yaml-if-empty: true` 时，如果 MySQL 表为空，会自动从原 `claims.yml` 导入旧数据。
-- MySQL 表默认名为 `mmm_land_claims`。
+- `table` 是插件自动创建的表名，无需手动建表，默认 `mmm_land_claims`。`jdbc-url-override` 不为空时会优先使用完整 JDBC URL。
 
 ### 世界限制
 
@@ -578,6 +581,17 @@ visual:
 - 数据保存
 
 ## 更新记录
+
+### 0.20.0
+
+类型：功能新增
+
+新增/调整：
+
+- MySQL 配置改为 `host`、`port`、`database`、`username`、`password`、`table` 的直观结构
+- 保留 `jdbc-url-override`，需要完整 JDBC URL 时仍可覆盖自动拼接结果
+- 兼容读取旧版 `storage.mysql.jdbc-url` 和 `storage.mysql.table-prefix`
+- 默认配置说明补充“插件会自动创建表，无需手动建表”
 
 ### 0.19.0
 

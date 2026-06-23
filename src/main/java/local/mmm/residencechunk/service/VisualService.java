@@ -47,6 +47,10 @@ public final class VisualService {
             plugin.pluginConfig().getInt("visual.preview-step-blocks", 1)));
         int cornerHeight = Math.max(1, plugin.pluginConfig().getInt(configPath + ".corner-height",
             plugin.pluginConfig().getInt("visual.preview-corner-height", 8)));
+        int verticalLevels = Math.max(1, plugin.pluginConfig().getInt(configPath + ".vertical-levels",
+            plugin.pluginConfig().getInt("visual.preview-vertical-levels", 3)));
+        int verticalStep = Math.max(1, plugin.pluginConfig().getInt(configPath + ".vertical-step-blocks",
+            plugin.pluginConfig().getInt("visual.preview-vertical-step-blocks", 2)));
         float dustSize = (float) Math.max(0.2D, plugin.pluginConfig().getDouble(configPath + ".dust-size",
             plugin.pluginConfig().getDouble("visual.preview-dust-size", 1.6D)));
         boolean accentEnabled = plugin.pluginConfig().getBoolean(configPath + ".accent-enabled", true);
@@ -58,17 +62,20 @@ public final class VisualService {
         double y = Math.max(player.getLocation().getY(), world.getMinHeight() + 1);
         Particle.DustOptions dust = new Particle.DustOptions(color, dustSize);
 
-        for (int x = minX; x <= maxX; x += step) {
-            player.spawnParticle(Particle.DUST, x + 0.5, y, minZ + 0.5, 1, dust);
-            player.spawnParticle(Particle.DUST, x + 0.5, y, maxZ + 0.5, 1, dust);
-            spawnAccent(player, accentEnabled, accentParticle, x + 0.5, y + 0.2, minZ + 0.5);
-            spawnAccent(player, accentEnabled, accentParticle, x + 0.5, y + 0.2, maxZ + 0.5);
-        }
-        for (int z = minZ; z <= maxZ; z += step) {
-            player.spawnParticle(Particle.DUST, minX + 0.5, y, z + 0.5, 1, dust);
-            player.spawnParticle(Particle.DUST, maxX + 0.5, y, z + 0.5, 1, dust);
-            spawnAccent(player, accentEnabled, accentParticle, minX + 0.5, y + 0.2, z + 0.5);
-            spawnAccent(player, accentEnabled, accentParticle, maxX + 0.5, y + 0.2, z + 0.5);
+        for (int level = 0; level < verticalLevels; level++) {
+            double layerY = Math.min(world.getMaxHeight() - 1, y + ((double) level * verticalStep));
+            for (int x = minX; x <= maxX; x += step) {
+                player.spawnParticle(Particle.DUST, x + 0.5, layerY, minZ + 0.5, 1, dust);
+                player.spawnParticle(Particle.DUST, x + 0.5, layerY, maxZ + 0.5, 1, dust);
+                spawnAccent(player, accentEnabled, accentParticle, x + 0.5, layerY + 0.2, minZ + 0.5);
+                spawnAccent(player, accentEnabled, accentParticle, x + 0.5, layerY + 0.2, maxZ + 0.5);
+            }
+            for (int z = minZ; z <= maxZ; z += step) {
+                player.spawnParticle(Particle.DUST, minX + 0.5, layerY, z + 0.5, 1, dust);
+                player.spawnParticle(Particle.DUST, maxX + 0.5, layerY, z + 0.5, 1, dust);
+                spawnAccent(player, accentEnabled, accentParticle, minX + 0.5, layerY + 0.2, z + 0.5);
+                spawnAccent(player, accentEnabled, accentParticle, maxX + 0.5, layerY + 0.2, z + 0.5);
+            }
         }
 
         for (double cornerY = y; cornerY <= y + cornerHeight; cornerY += 1) {

@@ -26,7 +26,7 @@ public final class MysqlLandDataStore implements LandDataStore {
     public MysqlLandDataStore(MysqlStorageSettings settings, YamlLandDataStore yamlMigrationSource) {
         this.settings = settings;
         this.yamlMigrationSource = yamlMigrationSource;
-        this.tableName = sanitizeIdentifier(settings.tablePrefix()) + "claims";
+        this.tableName = sanitizeIdentifier(settings.table());
     }
 
     @Override

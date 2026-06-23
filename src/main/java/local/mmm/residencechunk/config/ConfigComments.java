@@ -24,14 +24,18 @@ public final class ConfigComments {
             "存储类型，可选：yaml、mysql。",
             "默认 yaml，切换 mysql 前请先配置下面的连接信息。");
         comment(config, "storage.mysql", "MySQL 存储配置。");
-        comment(config, "storage.mysql.jdbc-url",
-            "MySQL JDBC 连接地址。",
-            "database 需要提前创建，插件会自动创建表。");
+        comment(config, "storage.mysql.host", "MySQL 地址。");
+        comment(config, "storage.mysql.port", "MySQL 端口。");
+        comment(config, "storage.mysql.database",
+            "数据库名。数据库需要提前创建，插件会自动创建下面配置的表。");
         comment(config, "storage.mysql.username", "数据库用户名。");
         comment(config, "storage.mysql.password", "数据库密码。");
-        comment(config, "storage.mysql.table-prefix",
-            "数据表前缀，最终表名默认为 mmm_land_claims。",
+        comment(config, "storage.mysql.table",
+            "插件会自动创建这个表，无需手动建表。",
             "只允许字母、数字和下划线，其他字符会自动替换为下划线。");
+        comment(config, "storage.mysql.jdbc-url-override",
+            "高级选项：不为空时优先使用该完整 JDBC URL，host/port/database 会被忽略。",
+            "旧配置 storage.mysql.jdbc-url 仍会兼容读取，但建议改用本项。");
         comment(config, "storage.mysql.migrate-from-yaml-if-empty",
             "当 MySQL 表为空时，是否自动从 claims.yml 导入旧数据。",
             "建议首次切换 MySQL 时保持 true。");
