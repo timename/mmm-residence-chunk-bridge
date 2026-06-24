@@ -58,6 +58,9 @@ world-claim-rules:
 currency:
   display-name: "萌萌币"
 
+# 是否在控制台输出领地同步日志，默认关闭
+console-sync-log-enabled: false
+
 # 领地创建与形状规则。
 claims:
   # Residence 内部领地名前缀。
@@ -278,6 +281,8 @@ pricing:
 
       # 自管货币显示名。
       display-name: "萌萌贝壳"
+
+# 是否在控制台输出领地同步日志，默认关闭
       # 自管货币递增价格。
       # 默认规则：超出萌萌币上限后的第 1 个区块 10，第 2 个 20，第 3 个 30。
       progressive:

@@ -1226,7 +1226,7 @@ public final class LandService implements Listener {
             applyResidenceMessages(residence, claim);
             updated++;
         }
-        if (updated > 0) {
+        if (updated > 0 && plugin.isConsoleSyncLogEnabled()) {
             plugin.getLogger().info("Synced Chinese enter/leave messages for " + updated + " managed residences.");
         }
     }
@@ -1241,7 +1241,7 @@ public final class LandService implements Listener {
                 updated++;
             }
         }
-        if (updated > 0) {
+        if (updated > 0 && plugin.isConsoleSyncLogEnabled()) {
             plugin.getLogger().info("Synced public teleport Residence tp flag for " + updated + " managed residences.");
         }
     }

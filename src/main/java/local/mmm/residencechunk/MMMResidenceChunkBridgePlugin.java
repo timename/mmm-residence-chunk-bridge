@@ -45,6 +45,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
     private GuiService guiService;
     private SelectionService selectionService;
     private VisualService visualService;
+    private boolean consoleSyncLogEnabled;
     private ResidenceHook residenceHook;
     private FileConfiguration language;
 
@@ -57,6 +58,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         applyConfigComments();
         reloadLanguage();
         settings = PluginSettings.fromConfig(pluginConfig());
+        consoleSyncLogEnabled = pluginConfig().getBoolean("console-sync-log-enabled", false);
         dataStore = createDataStore(settings);
         dataStore.load();
 
@@ -142,12 +144,16 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         return residenceHook;
     }
 
+    public boolean isConsoleSyncLogEnabled() {
+        return consoleSyncLogEnabled;
+    }
     public void reloadPluginConfig() {
         reloadPluginConfigFile();
         applyConfigComments();
         saveLanguageFile();
         reloadLanguage();
         settings = PluginSettings.fromConfig(pluginConfig());
+        consoleSyncLogEnabled = pluginConfig().getBoolean("console-sync-log-enabled", false);
         if (landService != null) {
             landService.reloadSettings(settings);
             landService.syncResidenceMessages();
