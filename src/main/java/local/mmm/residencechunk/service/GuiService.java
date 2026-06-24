@@ -118,47 +118,48 @@ public final class GuiService implements Listener {
             plugin.message("gui.detail-title"));
         fillBackground(inventory);
         inventory.setItem(13, createItem(Material.BOOK, "&e" + claim.displayName(),
-            "&7内部名: &f" + claim.residenceName(),
             "&7世界: &f" + claim.worldName(),
-            "&7区块面积: &f" + claim.bounds().area()));
+            "&7区块面积: &f" + claim.bounds().area(),
+            "&7内部名: &f" + claim.residenceName()));
 
-        inventory.setItem(19, actionItem(Material.ENDER_PEARL, "&a传送到领地", "teleport::" + claim.displayName(),
-            "&7传送到该领地的 Residence 传送点"));
+        inventory.setItem(20, actionItem(Material.ENDER_PEARL, "&a传送到领地", "teleport::" + claim.displayName(),
+            "&7传送到该领地的传送点"));
         inventory.setItem(21, actionItem(Material.COMPASS, "&e设置传送点", "set_teleport::" + claim.displayName(),
             "&7必须站在该领地范围内",
             "&7会把当前位置设为领地传送点"));
+        inventory.setItem(23, actionItem(Material.ENDER_EYE, "&b预览边界", "preview::" + claim.displayName(),
+            "&7显示当前领地边界"));
+        inventory.setItem(24, actionItem(Material.COMPARATOR, "&b高级配置", "residence_manage::" + claim.displayName(),
+            "&7打开领地权限与规则配置界面",
+            "&7可调整传送、移动等高级选项"));
 
-        inventory.setItem(28, actionItem(Material.ENDER_EYE, "&b预览边界", "preview::" + claim.displayName()));
         inventory.setItem(29, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
             "&7使用圈地工具重新选择矩形边界",
             "&7新增区块会按扩建规则收费"));
         inventory.setItem(30, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
-        inventory.setItem(31, actionItem(Material.COMPARATOR, "&b领地高级配置", "residence_manage::" + claim.displayName(),
-            "&7打开领地权限与规则配置界面",
-            "&7可调整传送、移动等高级选项"));
-        inventory.setItem(32, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
-        inventory.setItem(33, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
+        inventory.setItem(31, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
+        inventory.setItem(32, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
             "&7信任玩家、取消信任",
             "&7禁止进入、解除禁止"));
-
-        inventory.setItem(39, actionItem(Material.NAME_TAG, "&b重命名提示",
+        inventory.setItem(33, actionItem(Material.NAME_TAG, "&b重命名提示",
             "noop::" + claim.displayName(),
-            "&7请使用命令:",
+            "&7请使用命令",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
+
         boolean teleportAllowed = landService.residenceFlagEnabled(claim, "tp");
         boolean moveAllowed = landService.residenceFlagEnabled(claim, "move");
-        inventory.setItem(40, actionItem(teleportAllowed ? Material.LIME_DYE : Material.GRAY_DYE,
+        inventory.setItem(39, actionItem(teleportAllowed ? Material.LIME_DYE : Material.GRAY_DYE,
             teleportAllowed ? "&a传送权限：允许" : "&c传送权限：禁止",
             "flag:tp:传送",
             "&7左键切换所有玩家传送权限",
             "&7右键输入玩家名，单独切换该玩家传送权限"));
-        inventory.setItem(42, actionItem(moveAllowed ? Material.LEATHER_BOOTS : Material.IRON_BARS,
+        inventory.setItem(40, actionItem(moveAllowed ? Material.LEATHER_BOOTS : Material.IRON_BARS,
             moveAllowed ? "&a移动权限：允许" : "&c移动权限：禁止",
             "flag:move:移动",
             "&7左键切换所有玩家移动权限",
             "&7右键输入玩家名，单独切换该玩家移动权限"));
         inventory.setItem(41, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName(),
-            "&c此操作会删除托管记录和 Residence 领地"));
+            "&c不可逆删除领地"));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
         player.openInventory(inventory);
     }

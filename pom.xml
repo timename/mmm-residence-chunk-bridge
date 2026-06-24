@@ -5,7 +5,7 @@
 
     <groupId>local.mmm</groupId>
     <artifactId>mmm-residence-chunk-bridge</artifactId>
-    <version>0.23.6</version>
+    <version>0.24.0</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -38,9 +38,9 @@
         <dependency>
             <groupId>local.mmm</groupId>
             <artifactId>mmm-vault-sync</artifactId>
-            <version>3.6.2</version>
+            <version>3.6.3</version>
             <scope>system</scope>
-            <systemPath>E:/MCserver/MMM/purpur1.21.10_Survival/plugins/mmm-vault-sync-3.6.2.jar</systemPath>
+            <systemPath>E:/MCserver/MMM/purpur1.21.10_Survival/plugins/mmm-vault-sync-3.6.3.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>net.kyori</groupId>

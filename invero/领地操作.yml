@@ -1,0 +1,177 @@
+title: "&0&l领地操作"
+rows: 6
+
+# Invero 菜单模板。
+# 使用前请把 <领地名> 替换为具体领地显示名，或按你的变量/脚本系统改成动态值。
+# 本插件当前仍使用内置 Bukkit GUI；此文件用于复制到 Invero workspace 后自行定制。
+
+events:
+  post_open: sound UI_TOAST_IN by 1 1
+  close: sound UI_TOAST_OUT by 1 1
+
+items:
+  领地信息:
+    material: book
+    name: "&e&l<领地名>"
+    lore:
+      - ""
+      - "&7查看并管理这个领地"
+      - "&7常用操作放在中间区域"
+    slot: 4x1
+
+  传送到领地:
+    material: ender_pearl
+    name: "&a&l传送到领地"
+    lore:
+      - ""
+      - "&7传送到这个领地的传送点"
+    slot: 2x2
+    actions:
+      - menu close
+      - command "mmmland tp <领地名>"
+
+  设置传送点:
+    material: compass
+    name: "&e&l设置传送点"
+    lore:
+      - ""
+      - "&7必须站在该领地范围内"
+      - "&7把当前位置设为领地传送点"
+    slot: 3x2
+    actions:
+      - menu close
+      - command "mmmland sethome <领地名>"
+
+  预览边界:
+    material: ender_eye
+    name: "&b&l预览边界"
+    lore:
+      - ""
+      - "&7显示当前领地边界"
+    slot: 5x2
+    actions:
+      - menu close
+      - command "mmmland preview <领地名>"
+
+  高级配置:
+    material: comparator
+    name: "&b&l高级配置"
+    lore:
+      - ""
+      - "&7打开领地权限与规则配置界面"
+      - "&7可调整传送、移动等高级选项"
+    slot: 6x2
+    actions:
+      - menu close
+      - command "res set <领地名>"
+
+  工具调整边界:
+    material: golden_shovel
+    name: "&a&l工具调整边界"
+    lore:
+      - ""
+      - "&7使用圈地工具重新选择矩形边界"
+      - "&7新增区块会按扩建规则收费"
+    slot: 2x3
+    actions:
+      - menu close
+      - command "mmmland resize <领地名>"
+
+  扩张领地:
+    material: lime_concrete
+    name: "&a&l扩张领地"
+    lore:
+      - ""
+      - "&7选择方向和区块数后扩张"
+    slot: 3x3
+    actions:
+      - menu close
+      - command "mmmland expand <领地名>"
+
+  缩小领地:
+    material: orange_concrete
+    name: "&6&l缩小领地"
+    lore:
+      - ""
+      - "&7选择方向和区块数后缩小"
+    slot: 4x3
+    actions:
+      - menu close
+      - command "mmmland contract <领地名>"
+
+  成员权限:
+    material: player_head
+    name: "&d&l成员权限"
+    lore:
+      - ""
+      - "&7信任玩家、取消信任"
+      - "&7禁止进入、解除禁止"
+    slot: 5x3
+    actions:
+      - menu close
+      - command "mmmland trust <领地名>"
+
+  重命名提示:
+    material: name_tag
+    name: "&b&l重命名"
+    lore:
+      - ""
+      - "&7使用命令修改领地显示名"
+      - "&e/mmmland rename <旧名> <新名>"
+    slot: 6x3
+
+  传送权限:
+    material: lime_dye
+    name: "&a&l传送权限"
+    lore:
+      - ""
+      - "&7内置菜单可左键切换全局权限"
+      - "&7右键输入玩家名单独切换"
+    slot: 3x4
+
+  移动权限:
+    material: leather_boots
+    name: "&a&l移动权限"
+    lore:
+      - ""
+      - "&7内置菜单可左键切换全局权限"
+      - "&7右键输入玩家名单独切换"
+    slot: 4x4
+
+  删除领地:
+    material: lava_bucket
+    name: "&4&l删除领地"
+    lore:
+      - ""
+      - "&c不可逆删除领地"
+    slot: 5x4
+    actions:
+      - menu close
+      - command "mmmland delete <领地名>"
+
+  返回:
+    material: barrier
+    name: "&c&l返回"
+    slot: 4x5
+    actions:
+      - menu open 领地列表
+
+  蓝色玻璃板:
+    material: BLUE_STAINED_GLASS_PANE
+    name: "&a"
+    slots:
+      - "1~7"
+      - "0x1;8x1;0x2;8x2;0x3;8x3;0x4;8x4"
+      - "46~52"
+
+  淡蓝玻璃板:
+    material: LIGHT_BLUE_STAINED_GLASS_PANE
+    name: "&a"
+    slots:
+      - "1x2;7x2;1x3;7x3;1x4;7x4"
+
+  品红玻璃板:
+    material: MAGENTA_STAINED_GLASS_PANE
+    name: "&a"
+    slots:
+      - "45;53"
