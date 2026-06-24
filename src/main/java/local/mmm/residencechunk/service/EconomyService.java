@@ -25,6 +25,11 @@ public final class EconomyService {
         return economy.has(player, amount);
     }
 
+    public double balance(UUID playerUuid) {
+        OfflinePlayer player = Bukkit.getOfflinePlayer(playerUuid);
+        return economy.getBalance(player);
+    }
+
     public boolean withdraw(UUID playerUuid, double amount) {
         OfflinePlayer player = Bukkit.getOfflinePlayer(playerUuid);
         EconomyResponse response = economy.withdrawPlayer(player, amount);

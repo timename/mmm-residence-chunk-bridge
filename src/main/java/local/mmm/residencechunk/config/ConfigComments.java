@@ -148,13 +148,15 @@ public final class ConfigComments {
         comment(config, "pricing", "价格配置。");
         comment(config, "pricing.create", "创建新领地价格。");
         comment(config, "pricing.create.fallback-last-tier",
-            "超过 tiers 中最大序号后，是否沿用最高档基础价格继续计算。");
+            "超过 currency-tiers 中最大序号后，是否沿用最高档基础价格继续计算。");
         comment(config, "pricing.create.price-per-extra-chunk",
-            "多区块创建时，每个额外区块增加的创建价格。",
-            "例如创建 3 区块领地，会在基础创建价上额外加 2 次该价格。");
+            "多区块创建时，每个额外区块仍按扩建价格计算。",
+            "例如创建 3 区块领地，会在基础创建价上额外计算 2 个新增区块费用。");
+        comment(config, "pricing.create.currency-tiers",
+            "第 N 个领地的基础创建价格，可分别配置金币和萌萌贝壳。",
+            "currency: vault 表示服务器默认货币；currency: custom 表示自管货币。");
         comment(config, "pricing.create.tiers",
-            "第 N 个领地的基础创建价格。",
-            "key 是玩家的第几个领地，value 是价格。");
+            "旧版兼容项：如果没有配置 currency-tiers，会读取这里的金币价格。");
         comment(config, "pricing.expand", "扩建/工具调整边界新增区块价格。");
         comment(config, "pricing.expand.vault-max-chunks",
             "扩建后领地总区块数不超过该值时，使用服务器默认货币收费。",

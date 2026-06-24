@@ -5,6 +5,7 @@ local\mmm\residencechunk\service\LandService$ExpandCost.class
 local\mmm\residencechunk\service\YamlLandDataStore.class
 local\mmm\residencechunk\service\GuiService$PendingFlagAction.class
 local\mmm\residencechunk\service\ResidenceHook.class
+local\mmm\residencechunk\config\PluginSettings$CreatePriceTier.class
 local\mmm\residencechunk\service\GuiService$DeleteConfirmHolder.class
 local\mmm\residencechunk\service\LandDataStore.class
 local\mmm\residencechunk\service\SelectionService$SelectionSession.class

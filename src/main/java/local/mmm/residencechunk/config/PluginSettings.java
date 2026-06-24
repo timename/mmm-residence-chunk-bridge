@@ -27,6 +27,7 @@ public record PluginSettings(
     int defaultMaxClaims,
     Map<String, Integer> permissionMaxClaims,
     Map<Integer, Double> createTiers,
+    Map<Integer, CreatePriceTier> createPriceTiers,
     boolean fallbackLastTier,
     double createPricePerExtraChunk,
     double expandBasePrice,
@@ -89,7 +90,7 @@ public record PluginSettings(
                 worldClaimRules.put(worldName, new WorldClaimRule(minDistance, maxDistance));
             }
         }
-        int defaultMaxClaims = Math.max(0, config.getInt("limits.default-max-claims", 4));
+        int defaultMaxClaims = Math.max(0, config.getInt("limits.default-max-claims", 6));
 
         Map<String, Integer> permissionMaxClaims = new HashMap<>();
         ConfigurationSection limitSection = config.getConfigurationSection("limits.permission-max-claims");
@@ -112,6 +113,21 @@ public record PluginSettings(
             }
         }
 
+
+        Map<Integer, CreatePriceTier> createPriceTiers = new HashMap<>();
+        ConfigurationSection priceTierSection = config.getConfigurationSection("pricing.create.currency-tiers");
+        if (priceTierSection != null) {
+            for (String key : priceTierSection.getKeys(false)) {
+                try {
+                    int tierIndex = Integer.parseInt(key);
+                    String currency = priceTierSection.getString(key + ".currency", "vault");
+                    double amount = Math.max(0D, priceTierSection.getDouble(key + ".amount", 0D));
+                    createPriceTiers.put(tierIndex, new CreatePriceTier(currency, amount));
+                } catch (NumberFormatException ignored) {
+                    // Ignore invalid keys.
+                }
+            }
+        }
         boolean fallbackLastTier = config.getBoolean("pricing.create.fallback-last-tier", true);
         double createPricePerExtraChunk = Math.max(0D, config.getDouble("pricing.create.price-per-extra-chunk", 500D));
         double legacyExpandPricePerChunk = Math.max(0D, config.getDouble("pricing.expand.price-per-chunk", 500D));
@@ -158,6 +174,7 @@ public record PluginSettings(
             defaultMaxClaims,
             Collections.unmodifiableMap(permissionMaxClaims),
             Collections.unmodifiableMap(createTiers),
+            Collections.unmodifiableMap(createPriceTiers),
             fallbackLastTier,
             createPricePerExtraChunk,
             expandBasePrice,
@@ -187,6 +204,14 @@ public record PluginSettings(
         return value == null || value.isBlank();
     }
 
+    public record CreatePriceTier(
+        String currency,
+        double amount
+    ) {
+        public boolean customCurrency() {
+            return "custom".equalsIgnoreCase(currency) || "shell".equalsIgnoreCase(currency) || "mengmeng_shell".equalsIgnoreCase(currency);
+        }
+    }
     public record WorldClaimRule(
         int minDistanceFromOriginXz,
         int maxDistanceFromOriginXz

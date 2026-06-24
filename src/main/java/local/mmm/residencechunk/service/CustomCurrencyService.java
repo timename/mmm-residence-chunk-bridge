@@ -58,6 +58,22 @@ public final class CustomCurrencyService {
         }
     }
 
+
+    public BigDecimal balance(UUID playerUuid, String currencyId) {
+        VaultSyncCurrencyService service = service();
+        if (service == null || !service.canAcceptEconomicOperations()) {
+            return null;
+        }
+        try {
+            return service.getBalanceAsync(playerUuid, currencyId)
+                .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (ExecutionException | TimeoutException exception) {
+            return null;
+        }
+    }
     public boolean withdraw(UUID playerUuid, String currencyId, double amount, String reason) {
         if (amount <= 0D) {
             return true;

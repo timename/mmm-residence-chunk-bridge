@@ -1,5 +1,6 @@
 package local.mmm.residencechunk.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -14,6 +15,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
 import local.mmm.residencechunk.config.PluginSettings;
+import local.mmm.residencechunk.config.PluginSettings.CreatePriceTier;
 import local.mmm.residencechunk.config.PluginSettings.WorldClaimRule;
 import local.mmm.residencechunk.model.ChunkBounds;
 import local.mmm.residencechunk.model.ChunkBounds.Direction;
@@ -1082,6 +1084,10 @@ public final class LandService implements Listener {
         return calculateCreateCost(getClaims(player.getUniqueId()).size() + 1, ChunkBounds.single(player.getChunk())).price();
     }
 
+    public String previewCreateCostSummary(Player player) {
+        return calculateCreateCost(getClaims(player.getUniqueId()).size() + 1, ChunkBounds.single(player.getChunk())).summary();
+    }
+
     public double getExpandPricePerChunk() {
         return settings.expandBasePrice();
     }
@@ -1356,18 +1362,33 @@ public final class LandService implements Listener {
         return limit;
     }
 
-    private double getCreateBasePrice(int ordinal) {
-        Double exact = settings.createTiers().get(ordinal);
+    private CreatePriceTier getCreateBasePriceTier(int ordinal) {
+        CreatePriceTier exact = settings.createPriceTiers().get(ordinal);
         if (exact != null) {
             return exact;
         }
-        if (!settings.fallbackLastTier() || settings.createTiers().isEmpty()) {
-            return 0D;
+        if (!settings.createTiers().isEmpty()) {
+            Double legacyExact = settings.createTiers().get(ordinal);
+            if (legacyExact != null) {
+                return new CreatePriceTier("vault", legacyExact);
+            }
         }
-        return settings.createTiers().entrySet().stream()
-            .max(Map.Entry.comparingByKey())
-            .map(Map.Entry::getValue)
-            .orElse(0D);
+        if (!settings.fallbackLastTier()) {
+            return new CreatePriceTier("vault", 0D);
+        }
+        if (!settings.createPriceTiers().isEmpty()) {
+            return settings.createPriceTiers().entrySet().stream()
+                .max(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .orElse(new CreatePriceTier("vault", 0D));
+        }
+        if (!settings.createTiers().isEmpty()) {
+            return settings.createTiers().entrySet().stream()
+                .max(Map.Entry.comparingByKey())
+                .map(entry -> new CreatePriceTier("vault", entry.getValue()))
+                .orElse(new CreatePriceTier("vault", 0D));
+        }
+        return new CreatePriceTier("vault", 0D);
     }
 
     private boolean requiresCustomCurrency(ChunkBounds bounds) {
@@ -1611,14 +1632,29 @@ public final class LandService implements Listener {
     }
 
     private ExpandCost calculateCreateCost(int ordinal, ChunkBounds bounds) {
+        ExpandCost baseCost = createBaseCost(ordinal, bounds);
         ExpandCost extraCost = calculateProgressiveCost(settings.minChunks(), bounds.area(), bounds);
         return new ExpandCost(
             bounds,
             extraCost.deltaChunks(),
-            getCreateBasePrice(ordinal) + extraCost.defaultPrice(),
-            extraCost.customPrice(),
-            extraCost.defaultCurrencyDisplayName(),
-            extraCost.customCurrencyDisplayName()
+            baseCost.defaultPrice() + extraCost.defaultPrice(),
+            baseCost.customPrice() + extraCost.customPrice(),
+            baseCost.defaultCurrencyDisplayName(),
+            baseCost.customCurrencyDisplayName()
+        );
+    }
+
+    private ExpandCost createBaseCost(int ordinal, ChunkBounds bounds) {
+        CreatePriceTier tier = getCreateBasePriceTier(ordinal);
+        double defaultPrice = tier.customCurrency() ? 0D : tier.amount();
+        double customPrice = tier.customCurrency() ? tier.amount() : 0D;
+        return new ExpandCost(
+            bounds,
+            0,
+            defaultPrice,
+            customPrice,
+            economyService.currencyDisplayName(),
+            customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
         );
     }
 
@@ -1672,13 +1708,33 @@ public final class LandService implements Listener {
 
     private boolean withdrawFunds(Player player, ExpandCost cost, String reason) {
         boolean ok = true;
-        if (cost.defaultPrice() > 0D) {
-            ok = economyService.withdraw(player.getUniqueId(), cost.defaultPrice()) && ok;
-        }
         if (cost.customPrice() > 0D) {
-            ok = customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason) && ok;
+            BigDecimal before = customCurrencyService.balance(player.getUniqueId(), settings.expandCustomCurrencyId());
+            boolean withdrawn = customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason);
+            ok = (withdrawn || customCurrencyActuallyDeducted(before, player.getUniqueId(), cost.customPrice())) && ok;
+        }
+        if (cost.defaultPrice() > 0D) {
+            double before = economyService.balance(player.getUniqueId());
+            boolean withdrawn = economyService.withdraw(player.getUniqueId(), cost.defaultPrice());
+            ok = (withdrawn || defaultCurrencyActuallyDeducted(before, player.getUniqueId(), cost.defaultPrice())) && ok;
         }
         return ok;
+    }
+
+    private boolean defaultCurrencyActuallyDeducted(double before, UUID playerUuid, double amount) {
+        double after = economyService.balance(playerUuid);
+        return before - after + 0.0001D >= amount;
+    }
+
+    private boolean customCurrencyActuallyDeducted(BigDecimal before, UUID playerUuid, double amount) {
+        if (before == null) {
+            return false;
+        }
+        BigDecimal after = customCurrencyService.balance(playerUuid, settings.expandCustomCurrencyId());
+        if (after == null) {
+            return false;
+        }
+        return before.subtract(after).compareTo(BigDecimal.valueOf(amount).setScale(4, java.math.RoundingMode.HALF_UP)) >= 0;
     }
 
     private boolean applyResidenceFlag(ManagedClaim claim, String flag, String state) {

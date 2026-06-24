@@ -204,7 +204,7 @@ teleport:
 # 玩家领地数量限制。
 limits:
   # 没有特殊权限时，玩家最多可拥有的本插件托管领地数量。
-  default-max-claims: 4
+  default-max-claims: 6
 
   # 权限节点对应的最大领地数量。
   # 玩家拥有多个节点时取最大值。
@@ -212,26 +212,45 @@ limits:
     mmmland.limit.1: 1
     mmmland.limit.2: 2
     mmmland.limit.4: 4
+    mmmland.limit.5: 5
+    mmmland.limit.6: 6
     mmmland.limit.8: 8
 
 # 价格配置。
 pricing:
   # 创建新领地价格。
   create:
-    # 超过 tiers 中最大序号后，是否沿用最高档基础价格继续计算。
+    # 超过 currency-tiers 中最大序号后，是否沿用最高档基础价格继续计算。
     fallback-last-tier: true
 
-    # 多区块创建时，每个额外区块增加的创建价格。
-    # 例如创建 3 区块领地，会在基础创建价上额外加 2 次该价格。
+    # 多区块创建时，每个额外区块仍按下面扩建价格计算。
+    # 例如创建 3 区块领地，会在第 N 个领地基础价上额外计算 2 个新增区块费用。
     price-per-extra-chunk: 500
 
-    # 第 N 个领地的基础创建价格。
-    # key 是玩家的第几个领地，value 是价格。
-    tiers:
-      1: 0
-      2: 1000
-      3: 2000
-      4: 4000
+    # 第 N 个领地的基础创建价格，可分别配置金币和萌萌贝壳。
+    # currency: vault 表示服务器默认货币；currency: custom 表示下方 custom-currency 配置的自管货币。
+    currency-tiers:
+      1:
+        currency: vault
+        amount: 0
+      2:
+        currency: vault
+        amount: 1000
+      3:
+        currency: vault
+        amount: 5000
+      4:
+        currency: custom
+        amount: 100
+      5:
+        currency: custom
+        amount: 500
+      6:
+        currency: custom
+        amount: 1000
+
+    # 旧版兼容项：如果没有配置 currency-tiers，会读取这里的金币价格。
+    tiers: {}
 
   # 扩建/工具调整边界新增区块价格。
   expand:

@@ -454,11 +454,26 @@ pricing:
   create:
     fallback-last-tier: true
     price-per-extra-chunk: 500
-    tiers:
-      1: 0
-      2: 1000
-      3: 2000
-      4: 4000
+    currency-tiers:
+      1:
+        currency: vault
+        amount: 0
+      2:
+        currency: vault
+        amount: 1000
+      3:
+        currency: vault
+        amount: 5000
+      4:
+        currency: custom
+        amount: 100
+      5:
+        currency: custom
+        amount: 500
+      6:
+        currency: custom
+        amount: 1000
+    tiers: {}
   expand:
     vault-max-chunks: 16
     progressive:

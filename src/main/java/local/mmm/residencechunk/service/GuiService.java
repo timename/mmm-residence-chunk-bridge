@@ -35,10 +35,10 @@ public final class GuiService implements Listener {
 
     private static final int[] AMOUNTS = {1, 2, 4, 8};
     private static final int[] CONTENT_SLOTS = {
-        10, 11, 12, 13, 14, 15, 16,
-        19, 20, 21, 22, 23, 24, 25,
-        28, 29, 30, 31, 32, 33, 34,
-        37, 38, 39, 40, 41, 42, 43
+        20, 21, 22, 23, 24, 25, 26,
+        29, 30, 31, 32, 33, 34, 35,
+        38, 39, 40, 41, 42, 43, 44,
+        47, 48, 49, 50, 51, 52, 53
     };
 
     private final MMMResidenceChunkBridgePlugin plugin;
@@ -65,7 +65,7 @@ public final class GuiService implements Listener {
         fillBackground(inventory);
         inventory.setItem(20, createItem(Material.GRASS_BLOCK, "&a创建当前区块领地",
             "&7在你当前所在区块创建整列领地",
-            "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
+            "&7下一块领地价格: &e" + landService.previewCreateCostSummary(player),
             "&b点击后关闭菜单并显示高亮边界",
             "&b随后在聊天栏输入“确认”完成创建"));
         inventory.setItem(22, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
@@ -109,7 +109,7 @@ public final class GuiService implements Listener {
             item.editMeta(meta -> meta.getPersistentDataContainer().set(claimKey, PersistentDataType.STRING, claim.residenceName()));
             inventory.setItem(CONTENT_SLOTS[index++], item);
         }
-        inventory.setItem(49, createItem(Material.BARRIER, "&c返回主菜单"));
+        inventory.setItem(45, createItem(Material.BARRIER, "&c返回主菜单"));
         player.openInventory(inventory);
     }
 
@@ -371,7 +371,7 @@ public final class GuiService implements Listener {
     }
 
     private void handleClaimsListClick(Player player, ItemStack item, int rawSlot) {
-        if (rawSlot == 49) {
+        if (rawSlot == 45) {
             openMainMenu(player);
             return;
         }
