@@ -3,6 +3,7 @@ package local.mmm.residencechunk.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -74,24 +75,18 @@ public final class CustomCurrencyService {
             return null;
         }
     }
-    public boolean withdraw(UUID playerUuid, String currencyId, double amount, String reason) {
+
+    public CompletableFuture<Boolean> withdrawAsync(UUID playerUuid, String currencyId, double amount, String reason) {
         if (amount <= 0D) {
-            return true;
+            return CompletableFuture.completedFuture(true);
         }
         VaultSyncCurrencyService service = service();
         if (service == null || !service.canAcceptEconomicOperations()) {
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
-        try {
-            BalanceMutationResult result = service.removeBalanceAsync(playerUuid, currencyId, toAmount(amount), reason)
-                .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return result.success();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return false;
-        } catch (ExecutionException | TimeoutException exception) {
-            return false;
-        }
+        return service.removeBalanceAsync(playerUuid, currencyId, toAmount(amount), reason)
+            .thenApply(BalanceMutationResult::success)
+            .exceptionally(exception -> false);
     }
 
     private BigDecimal toAmount(double amount) {

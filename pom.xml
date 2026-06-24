@@ -5,7 +5,7 @@
 
     <groupId>local.mmm</groupId>
     <artifactId>mmm-residence-chunk-bridge</artifactId>
-    <version>0.23.4</version>
+    <version>0.23.6</version>
     <packaging>jar</packaging>
 
     <properties>

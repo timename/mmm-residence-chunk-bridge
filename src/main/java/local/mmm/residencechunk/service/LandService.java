@@ -1,6 +1,5 @@
 package local.mmm.residencechunk.service;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -10,7 +9,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import local.mmm.residencechunk.MMMResidenceChunkBridgePlugin;
@@ -168,11 +169,16 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (!withdrawFunds(player, check.cost(), "mmm-land-create:" + check.internalName())) {
-            player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
-            return;
-        }
+        withdrawFundsAsync(player, check.cost(), "mmm-land-create:" + check.internalName(), success -> {
+            if (!success) {
+                player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
+                return;
+            }
+            createPreparedClaimAfterPayment(player, check);
+        });
+    }
 
+    private void createPreparedClaimAfterPayment(Player player, CreateCheckResult check) {
         boolean created = residenceHook.addResidence(getResidenceManager(), player, player.getName(), player.getUniqueId(), check.internalName(),
             lowLocation(player.getWorld(), check.bounds()), highLocation(player.getWorld(), check.bounds()), true);
         if (!created) {
@@ -278,11 +284,17 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (!withdrawFunds(player, cost, "mmm-land-expand:" + claim.residenceName())) {
-            player.sendMessage(costMessage(plugin.message("insufficient-funds"), cost));
-            return;
-        }
+        withdrawFundsAsync(player, cost, "mmm-land-expand:" + claim.residenceName(), success -> {
+            if (!success) {
+                player.sendMessage(costMessage(plugin.message("insufficient-funds"), cost));
+                return;
+            }
+            expandClaimAfterPayment(player, claim, newBounds, deltaChunks, cost, residence, area);
+        });
+    }
 
+    private void expandClaimAfterPayment(Player player, ManagedClaim claim, ChunkBounds newBounds, int deltaChunks,
+                                         ExpandCost cost, Object residence, Object area) {
         boolean updated = residenceHook.replaceArea(residence, player, area, MAIN_AREA, true);
         if (!updated) {
             player.sendMessage(plugin.message("residence-missing"));
@@ -406,10 +418,16 @@ public final class LandService implements Listener {
             }
             return;
         }
-        if (!withdrawFunds(player, check.cost(), "mmm-land-resize:" + claim.residenceName())) {
-            player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
-            return;
-        }
+        withdrawFundsAsync(player, check.cost(), "mmm-land-resize:" + claim.residenceName(), success -> {
+            if (!success) {
+                player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
+                return;
+            }
+            resizeClaimAfterPayment(player, claim, newBounds, check);
+        });
+    }
+
+    private void resizeClaimAfterPayment(Player player, ManagedClaim claim, ChunkBounds newBounds, ResizeCheckResult check) {
         boolean updated = residenceHook.replaceArea(check.residence(), player, check.area(), MAIN_AREA, true);
         if (!updated) {
             player.sendMessage(plugin.message("residence-missing"));
@@ -1706,35 +1724,26 @@ public final class LandService implements Listener {
         return true;
     }
 
-    private boolean withdrawFunds(Player player, ExpandCost cost, String reason) {
-        boolean ok = true;
-        if (cost.customPrice() > 0D) {
-            BigDecimal before = customCurrencyService.balance(player.getUniqueId(), settings.expandCustomCurrencyId());
-            boolean withdrawn = customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason);
-            ok = (withdrawn || customCurrencyActuallyDeducted(before, player.getUniqueId(), cost.customPrice())) && ok;
-        }
-        if (cost.defaultPrice() > 0D) {
-            double before = economyService.balance(player.getUniqueId());
-            boolean withdrawn = economyService.withdraw(player.getUniqueId(), cost.defaultPrice());
-            ok = (withdrawn || defaultCurrencyActuallyDeducted(before, player.getUniqueId(), cost.defaultPrice())) && ok;
-        }
-        return ok;
+    private void withdrawFundsAsync(Player player, ExpandCost cost, String reason, Consumer<Boolean> callback) {
+        withdrawCustomCurrencyAsync(player, cost, reason)
+            .thenCompose(customOk -> customOk ? withdrawDefaultCurrencyAsync(player, cost) : CompletableFuture.completedFuture(false))
+            .whenComplete((success, throwable) -> Bukkit.getScheduler().runTask(plugin, () -> {
+                callback.accept(throwable == null && Boolean.TRUE.equals(success));
+            }));
     }
 
-    private boolean defaultCurrencyActuallyDeducted(double before, UUID playerUuid, double amount) {
-        double after = economyService.balance(playerUuid);
-        return before - after + 0.0001D >= amount;
+    private CompletableFuture<Boolean> withdrawCustomCurrencyAsync(Player player, ExpandCost cost, String reason) {
+        if (cost.customPrice() <= 0D) {
+            return CompletableFuture.completedFuture(true);
+        }
+        return customCurrencyService.withdrawAsync(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason);
     }
 
-    private boolean customCurrencyActuallyDeducted(BigDecimal before, UUID playerUuid, double amount) {
-        if (before == null) {
-            return false;
+    private CompletableFuture<Boolean> withdrawDefaultCurrencyAsync(Player player, ExpandCost cost) {
+        if (cost.defaultPrice() <= 0D) {
+            return CompletableFuture.completedFuture(true);
         }
-        BigDecimal after = customCurrencyService.balance(playerUuid, settings.expandCustomCurrencyId());
-        if (after == null) {
-            return false;
-        }
-        return before.subtract(after).compareTo(BigDecimal.valueOf(amount).setScale(4, java.math.RoundingMode.HALF_UP)) >= 0;
+        return CompletableFuture.completedFuture(economyService.withdraw(player.getUniqueId(), cost.defaultPrice()));
     }
 
     private boolean applyResidenceFlag(ManagedClaim claim, String flag, String state) {
