@@ -176,8 +176,8 @@ visual:
 # 手动圈地工具配置。
 selection:
   # 用于左键/右键选择区块的物品材质名。
-  # 必须是 Bukkit Material 名称，例如 WOODEN_SHOVEL、WOODEN_HOE。
-  tool: WOODEN_SHOVEL
+  # 必须是 Bukkit Material 名称，例如 GOLDEN_SHOVEL、WOODEN_HOE。
+  tool: GOLDEN_SHOVEL
 
   # 是否要求玩家必须手持上面的工具才能选择区块。
   require-tool: true

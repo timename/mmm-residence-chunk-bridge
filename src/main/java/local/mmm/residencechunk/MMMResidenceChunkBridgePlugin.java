@@ -72,6 +72,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         auditLogService = new AuditLogService(this);
         landService = new LandService(this, settings, dataStore, economyService, new CustomCurrencyService(), residenceHook, auditLogService);
         landService.syncResidenceMessages();
+        landService.syncPublicTeleportFlags();
         visualService = new VisualService(this);
         guiService = new GuiService(this, landService, visualService);
         selectionService = new SelectionService(this, landService, visualService);
@@ -148,6 +149,7 @@ public final class MMMResidenceChunkBridgePlugin extends JavaPlugin {
         if (landService != null) {
             landService.reloadSettings(settings);
             landService.syncResidenceMessages();
+            landService.syncPublicTeleportFlags();
         }
     }
 

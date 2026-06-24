@@ -1,6 +1,7 @@
 package local.mmm.residencechunk.service;
 
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -19,6 +20,11 @@ public final class ResidenceHook {
     private final Method setLeaveMessageMethod;
     private final Method replaceAreaMethod;
     private final Method removeResidenceMethod;
+    private final Method getPermissionsMethod;
+    private final Method hasFlagMethod;
+    private final Method isSetMethod;
+    private final Method getPlayerFlagsByNameMethod;
+    private final Method listPlayersFlagsMethod;
 
     public ResidenceHook(Plugin residencePlugin) {
         try {
@@ -37,7 +43,13 @@ public final class ResidenceHook {
             this.setEnterMessageMethod = residenceClass.getMethod("setEnterMessage", String.class);
             this.setLeaveMessageMethod = residenceClass.getMethod("setLeaveMessage", String.class);
             this.replaceAreaMethod = residenceClass.getMethod("replaceArea", Player.class, cuboidAreaClass, String.class, boolean.class);
+            Class<?> flagPermissionsClass = Class.forName("com.bekvon.bukkit.residence.protection.FlagPermissions", true, classLoader);
             this.removeResidenceMethod = managerClass.getMethod("removeResidence", Player.class, residenceClass, boolean.class);
+            this.getPermissionsMethod = residenceClass.getMethod("getPermissions");
+            this.hasFlagMethod = flagPermissionsClass.getMethod("has", String.class, boolean.class);
+            this.isSetMethod = flagPermissionsClass.getMethod("isSet", String.class);
+            this.getPlayerFlagsByNameMethod = flagPermissionsClass.getMethod("getPlayerFlags", String.class);
+            this.listPlayersFlagsMethod = flagPermissionsClass.getMethod("listPlayersFlags");
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Failed to initialize Residence reflection bridge", exception);
         }
@@ -123,6 +135,38 @@ public final class ResidenceHook {
         }
     }
 
+
+    public Boolean getFlag(Object residence, String flag) {
+        try {
+            Object permissions = getPermissionsMethod.invoke(residence);
+            boolean set = (boolean) isSetMethod.invoke(permissions, flag);
+            if (!set) {
+                return null;
+            }
+            return (boolean) hasFlagMethod.invoke(permissions, flag, false);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to get Residence flag", exception);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Boolean> getPlayerFlags(Object residence, String playerName) {
+        try {
+            Object permissions = getPermissionsMethod.invoke(residence);
+            return (Map<String, Boolean>) getPlayerFlagsByNameMethod.invoke(permissions, playerName);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to get Residence player flags", exception);
+        }
+    }
+
+    public String listPlayersFlags(Object residence) {
+        try {
+            Object permissions = getPermissionsMethod.invoke(residence);
+            return (String) listPlayersFlagsMethod.invoke(permissions);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to list Residence player flags", exception);
+        }
+    }
     public void removeResidence(Object manager, Player player, Object residence, boolean resadmin) {
         try {
             removeResidenceMethod.invoke(manager, player, residence, resadmin);

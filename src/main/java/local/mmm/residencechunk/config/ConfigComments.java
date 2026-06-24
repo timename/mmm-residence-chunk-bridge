@@ -124,7 +124,7 @@ public final class ConfigComments {
         comment(config, "selection", "手动圈地工具配置。");
         comment(config, "selection.tool",
             "用于左键/右键选择区块的物品材质名。",
-            "必须是 Bukkit Material 名称，例如 WOODEN_SHOVEL、WOODEN_HOE。");
+            "必须是 Bukkit Material 名称，例如 GOLDEN_SHOVEL、WOODEN_HOE。");
         comment(config, "selection.require-tool", "是否要求玩家必须手持上面的工具才能选择区块。");
         comment(config, "selection.timeout-seconds", "选区会话超时时间，单位秒。");
         comment(config, "selection.preview-period-ticks", "选区预览刷新间隔，单位 tick。");

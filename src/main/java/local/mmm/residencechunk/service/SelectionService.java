@@ -268,8 +268,8 @@ public final class SelectionService implements Listener {
             .replace("%minZ%", Integer.toString(bounds.minChunkZ()))
             .replace("%maxX%", Integer.toString(bounds.maxChunkX()))
             .replace("%maxZ%", Integer.toString(bounds.maxChunkZ()))
-            .replace("%price%", formatPrice(check.price()))
-            .replace("%currency%", plugin.settings().currencyDisplayName());
+            .replace("%price%", check.summary())
+            .replace("%currency%", "");
         player.sendMessage(message);
         if (!check.allowed() && check.message() != null && !check.message().isBlank()) {
             player.sendMessage(check.message());

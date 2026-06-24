@@ -116,9 +116,13 @@ public final class LandService implements Listener {
             )));
         }
 
-        double price = getCreatePrice(nextOrdinal, bounds.area());
-        if (price > 0 && !economyService.has(player.getUniqueId(), price)) {
-            return CreateCheckResult.denied(money(plugin.message("insufficient-funds"), price));
+        ExpandCost cost = calculateCreateCost(nextOrdinal, bounds);
+        String availabilityMessage = checkCurrencyAvailability(cost);
+        if (availabilityMessage != null) {
+            return CreateCheckResult.denied(availabilityMessage);
+        }
+        if (!hasFunds(player, cost)) {
+            return CreateCheckResult.denied(costMessage(plugin.message("insufficient-funds"), cost));
         }
 
         String finalDisplayName = normalizeRequestedDisplayName(player, displayName);
@@ -142,7 +146,7 @@ public final class LandService implements Listener {
             return CreateCheckResult.denied(render(plugin.message("collision"), Map.of("target", collision)));
         }
 
-        return CreateCheckResult.allowed(finalDisplayName, internalName, player.getWorld().getName(), bounds, price);
+        return CreateCheckResult.allowed(finalDisplayName, internalName, player.getWorld().getName(), bounds, cost);
     }
 
     public void createClaim(Player player, String displayName) {
@@ -162,8 +166,8 @@ public final class LandService implements Listener {
             return;
         }
 
-        if (check.price() > 0 && !economyService.withdraw(player.getUniqueId(), check.price())) {
-            player.sendMessage(money(plugin.message("insufficient-funds"), check.price()));
+        if (!withdrawFunds(player, check.cost(), "mmm-land-create:" + check.internalName())) {
+            player.sendMessage(costMessage(plugin.message("insufficient-funds"), check.cost()));
             return;
         }
 
@@ -197,13 +201,13 @@ public final class LandService implements Listener {
         dataStore.save();
         applyResidenceMessages(residence, claim);
 
-        player.sendMessage(money(
+        player.sendMessage(costMessage(
             plugin.message("create-success"),
             Map.of("name", claim.displayName()),
-            check.price()
+            check.cost()
         ));
         auditLogService.log(player, "CREATE", "claim=" + claim.residenceName() + " display=" + claim.displayName()
-            + " world=" + claim.worldName() + " chunks=" + claim.bounds().area() + " price=" + formatAmount(check.price()));
+            + " world=" + claim.worldName() + " chunks=" + claim.bounds().area() + " cost=" + check.summary());
     }
 
     public void expandClaim(Player player, String residenceName, String directionInput, String amountInput) {
@@ -513,11 +517,106 @@ public final class LandService implements Listener {
         );
         dataStore.put(updatedClaim);
         dataStore.save();
+        if (!applyResidenceFlag(claim, "tp", enabled ? "true" : "false")) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
         player.sendMessage(render(plugin.message(enabled ? "public-teleport-enabled" : "public-teleport-disabled"), Map.of(
             "name", updatedClaim.displayName()
         )));
         auditLogService.log(player, enabled ? "PUBLIC_TELEPORT_ON" : "PUBLIC_TELEPORT_OFF",
             "claim=" + updatedClaim.residenceName() + " display=" + updatedClaim.displayName());
+    }
+
+    public boolean residenceFlagEnabled(ManagedClaim claim, String flag) {
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            return false;
+        }
+        Boolean value = residenceHook.getFlag(residence, flag);
+        return Boolean.TRUE.equals(value);
+    }
+
+    private boolean isPublicTeleportEnabled(ManagedClaim claim) {
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            return claim.publicTeleport();
+        }
+        Boolean value = residenceHook.getFlag(residence, "tp");
+        return Boolean.TRUE.equals(value);
+    }
+
+    public void toggleGlobalResidenceFlag(Player player, String residenceName, String flag, String displayName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        boolean enabled = !residenceFlagEnabled(claim, flag);
+        if ("tp".equalsIgnoreCase(flag)) {
+            setPublicTeleport(player, residenceName, enabled);
+            return;
+        }
+        if (!applyResidenceFlag(claim, flag, enabled ? "true" : "false")) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("residence-flag-updated"), Map.of(
+            "name", claim.displayName(),
+            "flag", displayName,
+            "state", enabled ? "允许" : "禁止"
+        )));
+        auditLogService.log(player, "FLAG_" + flag.toUpperCase(Locale.ROOT), "claim=" + claim.residenceName()
+            + " display=" + claim.displayName() + " state=" + enabled);
+    }
+
+    public void togglePlayerResidenceFlag(Player player, String residenceName, String targetName, String flag, String displayName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null || !isValidPlayerName(player, targetName)) {
+            return;
+        }
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+        Map<String, Boolean> flags = residenceHook.getPlayerFlags(residence, targetName);
+        Boolean current = flags == null ? null : flags.get(flag.toLowerCase(Locale.ROOT));
+        boolean enabled = !Boolean.TRUE.equals(current);
+        if (!applyResidencePlayerFlag(claim, targetName, flag, enabled ? "true" : "false")) {
+            player.sendMessage(plugin.message("permission-change-failed"));
+            return;
+        }
+        player.sendMessage(render(plugin.message("residence-player-flag-updated"), Map.of(
+            "name", claim.displayName(),
+            "player", targetName,
+            "flag", displayName,
+            "state", enabled ? "允许" : "禁止"
+        )));
+        auditLogService.log(player, "PLAYER_FLAG_" + flag.toUpperCase(Locale.ROOT), "claim=" + claim.residenceName()
+            + " display=" + claim.displayName() + " target=" + targetName + " state=" + enabled);
+    }
+
+    public void sendResidencePlayerPermissionDetails(Player player, String residenceName) {
+        ManagedClaim claim = requireOwnedClaim(player, residenceName);
+        if (claim == null) {
+            return;
+        }
+        Object residence = residenceHook.getByName(getResidenceManager(), claim.residenceName());
+        if (residence == null) {
+            player.sendMessage(plugin.message("residence-missing"));
+            return;
+        }
+        String detail = residenceHook.listPlayersFlags(residence);
+        player.sendMessage(render(plugin.message("residence-player-flags-header"), Map.of("name", claim.displayName())));
+        if (detail == null || detail.isBlank()) {
+            player.sendMessage(plugin.message("residence-player-flags-empty"));
+            return;
+        }
+        for (String line : detail.split("\\n")) {
+            if (!line.isBlank()) {
+                player.sendMessage(line);
+            }
+        }
     }
 
     private void startTeleport(Player player, ManagedClaim claim) {
@@ -848,7 +947,7 @@ public final class LandService implements Listener {
     public List<String> publicTeleportOwnerNames() {
         Set<String> ownerNames = new LinkedHashSet<>();
         getAllClaims().stream()
-            .filter(ManagedClaim::publicTeleport)
+            .filter(this::isPublicTeleportEnabled)
             .sorted(Comparator.comparing(ManagedClaim::ownerName, String.CASE_INSENSITIVE_ORDER))
             .forEach(claim -> ownerNames.add(claim.ownerName()));
         return new ArrayList<>(ownerNames);
@@ -980,7 +1079,7 @@ public final class LandService implements Listener {
     }
 
     public double previewCreatePrice(Player player) {
-        return getCreatePrice(getClaims(player.getUniqueId()).size() + 1, 1);
+        return calculateCreateCost(getClaims(player.getUniqueId()).size() + 1, ChunkBounds.single(player.getChunk())).price();
     }
 
     public double getExpandPricePerChunk() {
@@ -1081,7 +1180,7 @@ public final class LandService implements Listener {
     private List<ManagedClaim> publicClaimsByOwnerName(String ownerName) {
         String lowered = ownerName.toLowerCase(Locale.ROOT);
         return getAllClaims().stream()
-            .filter(ManagedClaim::publicTeleport)
+            .filter(this::isPublicTeleportEnabled)
             .filter(claim -> claim.ownerName().equalsIgnoreCase(ownerName)
                 || claim.ownerName().toLowerCase(Locale.ROOT).startsWith(lowered))
             .sorted(Comparator.comparing(ManagedClaim::displayName, String.CASE_INSENSITIVE_ORDER))
@@ -1108,6 +1207,20 @@ public final class LandService implements Listener {
         }
     }
 
+    public void syncPublicTeleportFlags() {
+        int updated = 0;
+        for (ManagedClaim claim : getAllClaims()) {
+            if (!claim.publicTeleport()) {
+                continue;
+            }
+            if (applyResidenceFlag(claim, "tp", "true")) {
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            plugin.getLogger().info("Synced public teleport Residence tp flag for " + updated + " managed residences.");
+        }
+    }
     private void applyResidenceMessages(Object residence, ManagedClaim claim) {
         residenceHook.setEnterMessage(residence, residenceMessage("residence-enter-message", claim));
         residenceHook.setLeaveMessage(residence, residenceMessage("residence-leave-message", claim));
@@ -1243,20 +1356,18 @@ public final class LandService implements Listener {
         return limit;
     }
 
-    private double getCreatePrice(int ordinal, int chunks) {
-        double basePrice;
+    private double getCreateBasePrice(int ordinal) {
         Double exact = settings.createTiers().get(ordinal);
         if (exact != null) {
-            basePrice = exact;
-        } else if (!settings.fallbackLastTier() || settings.createTiers().isEmpty()) {
-            basePrice = 0D;
-        } else {
-            basePrice = settings.createTiers().entrySet().stream()
-                .max(Map.Entry.comparingByKey())
-                .map(Map.Entry::getValue)
-                .orElse(0D);
+            return exact;
         }
-        return basePrice + (Math.max(0, chunks - 1) * settings.createPricePerExtraChunk());
+        if (!settings.fallbackLastTier() || settings.createTiers().isEmpty()) {
+            return 0D;
+        }
+        return settings.createTiers().entrySet().stream()
+            .max(Map.Entry.comparingByKey())
+            .map(Map.Entry::getValue)
+            .orElse(0D);
     }
 
     private boolean requiresCustomCurrency(ChunkBounds bounds) {
@@ -1305,7 +1416,7 @@ public final class LandService implements Listener {
             return CreateCheckResult.denied(render(plugin.message("collision"), Map.of("target", collision)));
         }
 
-        return new CreateCheckResult(true, null, finalDisplayName, internalName, admin.getWorld().getName(), bounds, 0D);
+        return CreateCheckResult.allowed(finalDisplayName, internalName, admin.getWorld().getName(), bounds, freeCost(bounds));
     }
 
     private ResizeCheckResult prepareResizeClaim(Player player, ManagedClaim claim, ChunkBounds newBounds) {
@@ -1499,14 +1610,28 @@ public final class LandService implements Listener {
         return null;
     }
 
+    private ExpandCost calculateCreateCost(int ordinal, ChunkBounds bounds) {
+        ExpandCost extraCost = calculateProgressiveCost(settings.minChunks(), bounds.area(), bounds);
+        return new ExpandCost(
+            bounds,
+            extraCost.deltaChunks(),
+            getCreateBasePrice(ordinal) + extraCost.defaultPrice(),
+            extraCost.customPrice(),
+            extraCost.defaultCurrencyDisplayName(),
+            extraCost.customCurrencyDisplayName()
+        );
+    }
+
     private ExpandCost calculateExpandCost(ChunkBounds currentBounds, ChunkBounds newBounds) {
-        int currentArea = currentBounds.area();
-        int targetArea = newBounds.area();
+        return calculateProgressiveCost(currentBounds.area(), newBounds.area(), newBounds);
+    }
+
+    private ExpandCost calculateProgressiveCost(int currentArea, int targetArea, ChunkBounds targetBounds) {
         int deltaChunks = Math.max(0, targetArea - currentArea);
         String defaultCurrency = economyService.currencyDisplayName();
         String customCurrency = customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName());
         if (deltaChunks <= 0) {
-            return new ExpandCost(newBounds, 0, 0D, 0D, defaultCurrency, customCurrency);
+            return new ExpandCost(targetBounds, 0, 0D, 0D, defaultCurrency, customCurrency);
         }
         int currentPaidArea = Math.max(0, currentArea - settings.minChunks());
         double defaultPrice = 0D;
@@ -1521,7 +1646,18 @@ public final class LandService implements Listener {
                 customPrice += settings.expandCustomBasePrice() + ((customIndex - 1D) * settings.expandCustomPriceIncreasePerChunk());
             }
         }
-        return new ExpandCost(newBounds, deltaChunks, defaultPrice, customPrice, defaultCurrency, customCurrency);
+        return new ExpandCost(targetBounds, deltaChunks, defaultPrice, customPrice, defaultCurrency, customCurrency);
+    }
+
+    private ExpandCost freeCost(ChunkBounds bounds) {
+        return new ExpandCost(
+            bounds,
+            0,
+            0D,
+            0D,
+            economyService.currencyDisplayName(),
+            customCurrencyService.displayName(settings.expandCustomCurrencyId(), settings.expandCustomCurrencyDisplayName())
+        );
     }
 
     private boolean hasFunds(Player player, ExpandCost cost) {
@@ -1543,6 +1679,11 @@ public final class LandService implements Listener {
             ok = customCurrencyService.withdraw(player.getUniqueId(), settings.expandCustomCurrencyId(), cost.customPrice(), reason) && ok;
         }
         return ok;
+    }
+
+    private boolean applyResidenceFlag(ManagedClaim claim, String flag, String state) {
+        String command = "resadmin set " + claim.residenceName() + " " + flag + " " + state;
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
     }
 
     private boolean applyResidencePlayerFlag(ManagedClaim claim, String targetName, String flag, String state) {
@@ -1734,14 +1875,22 @@ public final class LandService implements Listener {
         String internalName,
         String worldName,
         ChunkBounds bounds,
-        double price
+        ExpandCost cost
     ) {
         public static CreateCheckResult denied(String message) {
-            return new CreateCheckResult(false, message, null, null, null, null, 0D);
+            return new CreateCheckResult(false, message, null, null, null, null, null);
         }
 
-        public static CreateCheckResult allowed(String displayName, String internalName, String worldName, ChunkBounds bounds, double price) {
-            return new CreateCheckResult(true, null, displayName, internalName, worldName, bounds, price);
+        public static CreateCheckResult allowed(String displayName, String internalName, String worldName, ChunkBounds bounds, ExpandCost cost) {
+            return new CreateCheckResult(true, null, displayName, internalName, worldName, bounds, cost);
+        }
+
+        public double price() {
+            return cost == null ? 0D : cost.price();
+        }
+
+        public String summary() {
+            return cost == null ? "" : cost.summary();
         }
     }
 
@@ -1778,6 +1927,9 @@ public final class LandService implements Listener {
             }
             if (customPrice > 0D) {
                 parts.add(formatAmount(customPrice) + " " + customCurrencyDisplayName);
+            }
+            if (parts.isEmpty()) {
+                return "0 " + defaultCurrencyDisplayName;
             }
             return String.join(" + ", parts);
         }

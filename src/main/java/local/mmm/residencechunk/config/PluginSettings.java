@@ -126,7 +126,7 @@ public record PluginSettings(
         String expandCustomCurrencyId = config.getString("pricing.expand.custom-currency.id", "mengmeng_shell");
         String expandCustomCurrencyDisplayName = config.getString("pricing.expand.custom-currency.display-name", "萌萌贝壳");
         boolean contractRefundEnabled = config.getBoolean("pricing.contract.refund-enabled", false);
-        String selectionTool = config.getString("selection.tool", "WOODEN_SHOVEL");
+        String selectionTool = config.getString("selection.tool", "GOLDEN_SHOVEL");
         boolean selectionRequireTool = config.getBoolean("selection.require-tool", true);
         int selectionTimeoutSeconds = Math.max(15, config.getInt("selection.timeout-seconds", 120));
         int selectionPreviewPeriodTicks = Math.max(2, config.getInt("selection.preview-period-ticks", 10));

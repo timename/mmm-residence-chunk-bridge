@@ -460,7 +460,7 @@ mmmland.limit.8
 当前版本：
 
 ```text
-0.20.0
+0.21.0
 ```
 
 版本规则：
@@ -469,12 +469,13 @@ mmmland.limit.8
 - `y`：功能新增
 - `z`：Bug 修复
 
-当前 `0.20.0` 属于功能新增与配置体验优化版本，主要调整了：
+当前 `0.22.2` 属于 Bug 修复版本，主要调整了：
 
-- MySQL 配置改为 `host`、`port`、`database`、`username`、`password`、`table` 的直观结构
-- 保留 `jdbc-url-override`，需要完整 JDBC URL 时仍可覆盖自动拼接结果
-- 兼容读取旧版 `storage.mysql.jdbc-url` 和 `storage.mysql.table-prefix`
-- 继续保留 Residence、Vault、MMMVaultSync 的核心集成
+- 圈地工具默认值改回 `GOLDEN_SHOVEL`，菜单图标和配置说明同步调整
+- 领地详情菜单保留“领地高级配置”入口，可打开领地权限与规则配置界面
+- 本插件详情菜单的传送权限、移动权限直接读取底层当前 flag，高级配置界面改动后重新打开菜单即可同步显示
+- 传送权限、移动权限快捷按钮支持左键修改全局权限，右键输入玩家名修改单个玩家权限
+- 成员权限菜单可查看当前领地所有玩家的单独权限详情
 ## 11. 当前实现的优点
 
 - 底层继续依赖成熟的 `Residence`

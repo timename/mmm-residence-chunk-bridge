@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -48,6 +49,7 @@ public final class GuiService implements Listener {
     private final Map<UUID, PendingCreation> pendingCreations = new ConcurrentHashMap<>();
     private final Map<UUID, PendingTransform> pendingTransforms = new ConcurrentHashMap<>();
     private final Map<UUID, PendingMemberAction> pendingMemberActions = new ConcurrentHashMap<>();
+    private final Map<UUID, PendingFlagAction> pendingFlagActions = new ConcurrentHashMap<>();
 
     public GuiService(MMMResidenceChunkBridgePlugin plugin, LandService landService, VisualService visualService) {
         this.plugin = plugin;
@@ -66,7 +68,7 @@ public final class GuiService implements Listener {
             "&7下一块领地价格: &e" + formatPrice(landService.previewCreatePrice(player)) + " " + plugin.settings().currencyDisplayName(),
             "&b点击后关闭菜单并显示高亮边界",
             "&b随后在聊天栏输入“确认”完成创建"));
-        inventory.setItem(22, createItem(Material.WOODEN_SHOVEL, "&a可视化选区圈地",
+        inventory.setItem(22, createItem(Material.GOLDEN_SHOVEL, "&a可视化选区圈地",
             "&7手持配置工具后选择区块",
             "&7左键方块选择起点区块",
             "&7右键方块选择终点区块",
@@ -127,10 +129,13 @@ public final class GuiService implements Listener {
             "&7会把当前位置设为领地传送点"));
 
         inventory.setItem(28, actionItem(Material.ENDER_EYE, "&b预览边界", "preview::" + claim.displayName()));
-        inventory.setItem(29, actionItem(Material.WOODEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
+        inventory.setItem(29, actionItem(Material.GOLDEN_SHOVEL, "&a工具调整边界", "resize_select::" + claim.displayName(),
             "&7使用圈地工具重新选择矩形边界",
             "&7新增区块会按扩建规则收费"));
         inventory.setItem(30, actionItem(Material.LIME_CONCRETE, "&a扩张领地", "open_expand::" + claim.displayName()));
+        inventory.setItem(31, actionItem(Material.COMPARATOR, "&b领地高级配置", "residence_manage::" + claim.displayName(),
+            "&7打开领地权限与规则配置界面",
+            "&7可调整传送、移动等高级选项"));
         inventory.setItem(32, actionItem(Material.ORANGE_CONCRETE, "&6缩小领地", "open_contract::" + claim.displayName()));
         inventory.setItem(33, actionItem(Material.PLAYER_HEAD, "&d成员权限", "open_members::" + claim.displayName(),
             "&7信任玩家、取消信任",
@@ -140,12 +145,18 @@ public final class GuiService implements Listener {
             "noop::" + claim.displayName(),
             "&7请使用命令:",
             "&e/mmmland rename " + claim.displayName() + " 新名字"));
-        inventory.setItem(40, actionItem(claim.publicTeleport() ? Material.LIME_DYE : Material.GRAY_DYE,
-            claim.publicTeleport() ? "&a公开传送：已开启" : "&7公开传送：已关闭",
-            "toggle_public::" + claim.displayName(),
-            "&7开启后其他玩家可使用:",
-            "&e/mmmland visit " + claim.ownerName() + " " + claim.displayName(),
-            claim.publicTeleport() ? "&c点击关闭公开传送" : "&a点击开启公开传送"));
+        boolean teleportAllowed = landService.residenceFlagEnabled(claim, "tp");
+        boolean moveAllowed = landService.residenceFlagEnabled(claim, "move");
+        inventory.setItem(40, actionItem(teleportAllowed ? Material.LIME_DYE : Material.GRAY_DYE,
+            teleportAllowed ? "&a传送权限：允许" : "&c传送权限：禁止",
+            "flag:tp:传送",
+            "&7左键切换所有玩家传送权限",
+            "&7右键输入玩家名，单独切换该玩家传送权限"));
+        inventory.setItem(42, actionItem(moveAllowed ? Material.LEATHER_BOOTS : Material.IRON_BARS,
+            moveAllowed ? "&a移动权限：允许" : "&c移动权限：禁止",
+            "flag:move:移动",
+            "&7左键切换所有玩家移动权限",
+            "&7右键输入玩家名，单独切换该玩家移动权限"));
         inventory.setItem(41, actionItem(Material.LAVA_BUCKET, "&4删除领地", "open_delete::" + claim.displayName(),
             "&c此操作会删除托管记录和 Residence 领地"));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回列表"));
@@ -167,6 +178,9 @@ public final class GuiService implements Listener {
             "&7禁止该玩家移动进入和传送进入"));
         inventory.setItem(31, actionItem(Material.GLOWSTONE_DUST, "&b解除禁止", "member:undeny:" + claim.displayName(),
             "&7移除禁止进入相关限制"));
+        inventory.setItem(40, actionItem(Material.WRITABLE_BOOK, "&e查看玩家权限详情", "member_details::" + claim.displayName(),
+            "&7列出这个领地内所有玩家的单独权限记录",
+            "&7数据直接来自 Residence 当前权限"));
         inventory.setItem(49, createItem(Material.BARRIER, "&c返回上一页"));
         player.openInventory(inventory);
     }
@@ -248,7 +262,7 @@ public final class GuiService implements Listener {
                 openClaimsMenu(player);
                 return;
             }
-            routeAction(player, event.getCurrentItem(), detailHolder.residenceName());
+            routeAction(player, event.getCurrentItem(), detailHolder.residenceName(), event.getClick());
             return;
         }
         if (holder instanceof DirectionHolder directionHolder) {
@@ -259,7 +273,7 @@ public final class GuiService implements Listener {
                 }
                 return;
             }
-            routeAction(player, event.getCurrentItem(), directionHolder.residenceName());
+            routeAction(player, event.getCurrentItem(), directionHolder.residenceName(), event.getClick());
             return;
         }
         if (holder instanceof AmountHolder amountHolder) {
@@ -270,7 +284,7 @@ public final class GuiService implements Listener {
                 }
                 return;
             }
-            routeAction(player, event.getCurrentItem(), amountHolder.residenceName());
+            routeAction(player, event.getCurrentItem(), amountHolder.residenceName(), event.getClick());
             return;
         }
         if (holder instanceof DeleteConfirmHolder deleteHolder) {
@@ -282,7 +296,7 @@ public final class GuiService implements Listener {
                 openClaimDetailMenu(player, claim);
                 return;
             }
-            routeAction(player, event.getCurrentItem(), deleteHolder.residenceName());
+            routeAction(player, event.getCurrentItem(), deleteHolder.residenceName(), event.getClick());
         }
         if (holder instanceof MemberHolder memberHolder) {
             if (event.getRawSlot() == 49) {
@@ -292,7 +306,7 @@ public final class GuiService implements Listener {
                 }
                 return;
             }
-            routeAction(player, event.getCurrentItem(), memberHolder.residenceName());
+            routeAction(player, event.getCurrentItem(), memberHolder.residenceName(), event.getClick());
         }
     }
 
@@ -301,7 +315,8 @@ public final class GuiService implements Listener {
         PendingCreation pending = pendingCreations.get(event.getPlayer().getUniqueId());
         PendingTransform transform = pendingTransforms.get(event.getPlayer().getUniqueId());
         PendingMemberAction memberAction = pendingMemberActions.get(event.getPlayer().getUniqueId());
-        if (pending == null && transform == null && memberAction == null) {
+        PendingFlagAction flagAction = pendingFlagActions.get(event.getPlayer().getUniqueId());
+        if (pending == null && transform == null && memberAction == null && flagAction == null) {
             return;
         }
 
@@ -312,8 +327,10 @@ public final class GuiService implements Listener {
                 handlePendingCreateChat(event.getPlayer(), message);
             } else if (pendingTransforms.containsKey(event.getPlayer().getUniqueId())) {
                 handlePendingTransformChat(event.getPlayer(), message);
-            } else {
+            } else if (pendingMemberActions.containsKey(event.getPlayer().getUniqueId())) {
                 handlePendingMemberChat(event.getPlayer(), message);
+            } else {
+                handlePendingFlagChat(event.getPlayer(), message);
             }
         });
     }
@@ -338,6 +355,7 @@ public final class GuiService implements Listener {
         cancelPendingCreation(event.getPlayer(), null);
         cancelPendingTransform(event.getPlayer(), null);
         pendingMemberActions.remove(event.getPlayer().getUniqueId());
+        pendingFlagActions.remove(event.getPlayer().getUniqueId());
     }
 
     private void handleMainMenuClick(Player player, int rawSlot) {
@@ -372,7 +390,7 @@ public final class GuiService implements Listener {
         }
     }
 
-    private void routeAction(Player player, ItemStack item, String fallbackResidenceName) {
+    private void routeAction(Player player, ItemStack item, String fallbackResidenceName, ClickType clickType) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return;
@@ -418,6 +436,10 @@ public final class GuiService implements Listener {
             case "set_teleport" -> {
                 player.closeInventory();
                 player.performCommand("mmmland sethome " + fallbackResidenceName);
+            }
+            case "residence_manage" -> {
+                player.closeInventory();
+                player.performCommand("res set " + fallbackResidenceName);
             }
             case "toggle_public" -> {
                 ManagedClaim claim = landService.resolveOwnedClaim(player, fallbackResidenceName);
@@ -474,6 +496,24 @@ public final class GuiService implements Listener {
                 }
                 startMemberAction(player, parts[2], MemberAction.fromKey(parts[1]));
             }
+            case "member_details" -> {
+                landService.sendResidencePlayerPermissionDetails(player, fallbackResidenceName);
+                player.closeInventory();
+            }
+            case "flag" -> {
+                if (parts.length < 3) {
+                    return;
+                }
+                if (clickType.isRightClick()) {
+                    startFlagPlayerAction(player, fallbackResidenceName, parts[1], parts[2]);
+                    return;
+                }
+                landService.toggleGlobalResidenceFlag(player, fallbackResidenceName, parts[1], parts[2]);
+                ManagedClaim refreshed = landService.resolveOwnedClaim(player, fallbackResidenceName);
+                if (refreshed != null) {
+                    openClaimDetailMenu(player, refreshed);
+                }
+            }
             default -> {
             }
         }
@@ -495,8 +535,8 @@ public final class GuiService implements Listener {
         previewBounds(player, check.bounds(), check.worldName());
         player.sendMessage(plugin.message("create-preview")
             .replace("%name%", check.displayName())
-            .replace("%price%", formatPrice(check.price()))
-            .replace("%currency%", plugin.settings().currencyDisplayName()));
+            .replace("%price%", check.summary())
+            .replace("%currency%", ""));
         player.sendMessage(plugin.message("create-confirm-instruction"));
     }
 
@@ -583,6 +623,20 @@ public final class GuiService implements Listener {
         }
     }
 
+    private void startFlagPlayerAction(Player player, String claimName, String flag, String displayName) {
+        ManagedClaim claim = landService.resolveOwnedClaim(player, claimName);
+        if (claim == null) {
+            return;
+        }
+        cancelPendingCreation(player, null);
+        cancelPendingTransform(player, null);
+        pendingMemberActions.remove(player.getUniqueId());
+        pendingFlagActions.put(player.getUniqueId(), new PendingFlagAction(claim.displayName(), flag, displayName));
+        player.closeInventory();
+        player.sendMessage(plugin.message("flag-input-player")
+            .replace("%flag%", displayName)
+            .replace("%name%", claim.displayName()));
+    }
     private void startMemberAction(Player player, String claimName, MemberAction action) {
         if (action == null) {
             return;
@@ -620,6 +674,24 @@ public final class GuiService implements Listener {
         ManagedClaim refreshed = landService.resolveOwnedClaim(player, pending.claimName());
         if (refreshed != null) {
             openMemberMenu(player, refreshed);
+        }
+    }
+
+    private void handlePendingFlagChat(Player player, String message) {
+        PendingFlagAction pending = pendingFlagActions.get(player.getUniqueId());
+        if (pending == null) {
+            return;
+        }
+        if ("取消".equalsIgnoreCase(message) || "cancel".equalsIgnoreCase(message)) {
+            pendingFlagActions.remove(player.getUniqueId());
+            player.sendMessage(plugin.message("member-action-cancelled"));
+            return;
+        }
+        pendingFlagActions.remove(player.getUniqueId());
+        landService.togglePlayerResidenceFlag(player, pending.claimName(), message, pending.flag(), pending.displayName());
+        ManagedClaim refreshed = landService.resolveOwnedClaim(player, pending.claimName());
+        if (refreshed != null) {
+            openClaimDetailMenu(player, refreshed);
         }
     }
 
@@ -742,6 +814,9 @@ public final class GuiService implements Listener {
     }
 
     private record PendingMemberAction(String claimName, MemberAction action) {
+    }
+
+    private record PendingFlagAction(String claimName, String flag, String displayName) {
     }
 
     public enum Mode {
